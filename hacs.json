@@ -1,0 +1,6 @@
+{
+  "name": "MW HA Tab Card",
+  "filename": "mw-tab-card.js",
+  "render_readme": true,
+  "homeassistant": "2024.8.0"
+}

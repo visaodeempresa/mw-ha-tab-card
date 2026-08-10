@@ -1,0 +1,38 @@
+# Um ambiente por aba, faixa vertical à esquerda só com ícone.
+# Mostra o card servindo de casa para outros cards MW.
+type: custom:mw-tab-card
+tab_position: left
+tab_display: icon
+tab_size: 64
+paper_color: blue-3
+shell_color: "#123f6b"
+panel_min_height: 260
+remember_tab: true
+tabs:
+  - icon: mdi:sofa
+    label: Sala
+    cards:
+      - type: custom:power-button-card
+        entity: switch.tomada_da_tv
+        sensor_potencia: sensor.tomada_da_tv_potencia
+        only_power: true
+      - type: custom:mw-temp-humidity-card
+        temperature: sensor.sala_temperatura
+        humidity: sensor.sala_umidade
+
+  - icon: mdi:bed
+    label: Suíte
+    cards:
+      - type: custom:mw-occupancy-motion-card
+        entity: binary_sensor.suite_presenca
+      - type: custom:mw-door-window-card
+        entity: binary_sensor.suite_janela
+
+  - icon: mdi:chart-line
+    label: Consumo
+    display: both
+    cards:
+      - type: history-graph
+        hours_to_show: 24
+        entities:
+          - sensor.consumo_da_casa

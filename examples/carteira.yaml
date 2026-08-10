@@ -1,0 +1,29 @@
+# Clone do desenho de referência: casca carmim, faixa de título atrás do
+# painel, painel de papel com relevo 3D e a aba ativa fundida nele.
+# Troque as entidades pelas suas — o desenho não depende delas.
+type: custom:mw-tab-card
+header: UPDATE PAYMENT METHOD
+header_icon: mdi:chevron-right
+shell_color: "#a5123f"
+paper_color: paper
+tab_position: bottom
+tab_display: text
+tab_font_size: 12
+panel_min_height: 300
+tabs:
+  - label: My Wallet
+    cards:
+      - type: markdown
+        content: |
+          # 983 · 24k
+          Total Hours · Total Earned
+      - type: entities
+        entities:
+          - entity: sensor.ganho_do_mes
+            name: Amazone Camp…
+          - entity: sensor.extra
+            name: Extention
+  - label: My Awards
+    cards:
+      - type: markdown
+        content: Nenhum prêmio ainda.
