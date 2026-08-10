@@ -4,11 +4,15 @@ Card Lovelace `custom:mw-tab-card` — **abas de verdade no Home Assistant**:
 cada aba guarda uma pilha de cards (qualquer card, inclusive os outros cards
 MW e os de terceiros).
 
+<p align="center">
+  <img src="docs/clone.png" alt="MW Tab Card: casca carmim, faixa de título, painel de papel com relevo 3D e a aba «My Wallet» fundida no painel" width="482">
+</p>
+
 O desenho é o painel de papel do
 [MW Power Button Card](https://github.com/visaodeempresa/mw-ha-power-button-card):
 mesma paleta de **papel encardido** (49 tons + creme) e mesmo **relevo 3D**.
 A aba ativa não fica "colada" no painel — ela é **fundida** nele por um recorte
-côncavo, como no desenho de referência; as inativas ficam na casca colorida.
+côncavo; as inativas ficam na casca colorida.
 
 - Abas em **cima, embaixo, à esquerda ou à direita**
 - Aba com **ícone, texto ou os dois** (padrão do card, com override por aba)
@@ -22,9 +26,29 @@ côncavo, como no desenho de referência; as inativas ficam na casca colorida.
    `https://github.com/visaodeempresa/mw-ha-tab-card` → tipo **Dashboard**.
 2. Instalar **MW HA Tab Card** → recarregar o navegador (⌘⇧R).
 
+## As quatro posições
+
+![As quatro posições da faixa de abas](docs/posicoes.png)
+
+Na faixa **horizontal** (cima/embaixo) as abas dividem a largura em partes
+iguais — é o que o desenho de referência faz. Na faixa **vertical**
+(esquerda/direita) elas são do tamanho do conteúdo e começam no topo:
+esticar cada aba pela altura toda vira um bloco de meia tela e deixa de
+parecer aba. `tab_stretch` só existe na horizontal, e o editor esconde o
+interruptor quando ele não faria nada.
+
+![Aba do meio ativa e versão sem relevo](docs/variacoes.png)
+
+Com a aba do meio ativa aparecem **os dois recortes** ao mesmo tempo; numa aba
+de ponta, um deles some — a aba encosta na borda e aquele canto do painel fica
+reto. `elevation: false` entrega o painel chapado, para quem acha o neumórfico
+pesado no celular.
+
 ## Exemplos
 
-### 1. O mínimo — duas abas com cards dentro
+Cada um está pronto em [`examples/`](examples/).
+
+### 1. O mínimo — [`basico.yaml`](examples/basico.yaml)
 
 ```yaml
 type: custom:mw-tab-card
@@ -44,10 +68,10 @@ tabs:
           - light.quarto
 ```
 
-### 2. Clone da referência — carteira em vermelho, abas embaixo
+### 2. Clone da referência — [`carteira.yaml`](examples/carteira.yaml)
 
-O desenho que originou o card: casca carmim, faixa de título por trás do
-painel, painel de papel com relevo e a aba ativa fundida nele.
+A foto lá de cima: casca carmim, faixa de título por trás do painel, papel com
+relevo e a aba ativa fundida nele.
 
 ```yaml
 type: custom:mw-tab-card
@@ -58,6 +82,7 @@ paper_color: paper
 tab_position: bottom
 tab_display: text
 tab_font_size: 12
+panel_min_height: 300
 tabs:
   - label: My Wallet
     cards:
@@ -67,47 +92,19 @@ tabs:
           Total Hours · Total Earned
       - type: entities
         entities:
-          - sensor.ganho_do_mes
-          - sensor.extra
+          - entity: sensor.ganho_do_mes
+            name: Amazone Camp…
+          - entity: sensor.extra
+            name: Extention
   - label: My Awards
     cards:
       - type: markdown
         content: Nenhum prêmio ainda.
 ```
 
-### 3. Abas à esquerda, só ícone — painel de ambiente
+### 3. Abas em cima, ícone + texto — [`energia.yaml`](examples/energia.yaml)
 
-Faixa vertical de 64 px com ícone apenas: cabe num card estreito e continua
-legível no celular.
-
-```yaml
-type: custom:mw-tab-card
-tab_position: left
-tab_display: icon
-tab_size: 64
-paper_color: blue-3
-shell_color: "#123f6b"
-tabs:
-  - icon: mdi:sofa
-    label: Sala           # o texto vira o title (dica ao passar o mouse)
-    cards:
-      - type: custom:power-button-card
-        entity: switch.tomada_da_tv
-        sensor_potencia: sensor.tomada_da_tv_potencia
-  - icon: mdi:bed
-    label: Suíte
-    cards:
-      - type: custom:mw-temp-humidity-card
-        temperature: sensor.suite_temperatura
-        humidity: sensor.suite_umidade
-  - icon: mdi:shield-home
-    label: Segurança
-    cards:
-      - type: custom:mw-occupancy-motion-card
-        entity: binary_sensor.suite_presenca
-```
-
-### 4. Abas em cima, ícone + texto — dashboard de energia
+Segundo card da foto das posições.
 
 ```yaml
 type: custom:mw-tab-card
@@ -115,7 +112,7 @@ tab_position: top
 tab_display: both
 paper_color: yellow-2
 shell_color: "#7c2d12"
-panel_min_height: 340
+panel_min_height: 200
 tabs:
   - label: Agora
     icon: mdi:flash
@@ -139,7 +136,73 @@ tabs:
           - input_number.limite_de_consumo
 ```
 
-### 5. Uma aba por pessoa, com override de exibição
+### 4. Abas à esquerda, só ícone — [`ambientes.yaml`](examples/ambientes.yaml)
+
+Um ambiente por aba, servindo de casa para os outros cards MW. O `label`
+continua valendo: vira a dica ao passar o mouse.
+
+```yaml
+type: custom:mw-tab-card
+tab_position: left
+tab_display: icon
+tab_size: 64
+paper_color: blue-3
+shell_color: "#123f6b"
+panel_min_height: 246
+remember_tab: true
+tabs:
+  - icon: mdi:sofa
+    label: Sala
+    cards:
+      - type: custom:power-button-card
+        entity: switch.tomada_da_tv
+        sensor_potencia: sensor.tomada_da_tv_potencia
+        only_power: true
+      - type: custom:mw-temp-humidity-card
+        temperature: sensor.sala_temperatura
+        humidity: sensor.sala_umidade
+  - icon: mdi:bed
+    label: Suíte
+    cards:
+      - type: custom:mw-occupancy-motion-card
+        entity: binary_sensor.suite_presenca
+  - icon: mdi:chart-line
+    label: Consumo
+    display: both
+    cards:
+      - type: history-graph
+        hours_to_show: 24
+        entities:
+          - sensor.consumo_da_casa
+```
+
+### 5. Abas à direita — [`lateral-direita.yaml`](examples/lateral-direita.yaml)
+
+```yaml
+type: custom:mw-tab-card
+tab_position: right
+tab_display: icon
+tab_size: 56
+paper_color: green-3
+shell_color: "#14532d"
+panel_min_height: 246
+tabs:
+  - icon: mdi:home
+    label: Casa
+    cards:
+      - type: history-graph
+        hours_to_show: 12
+        entities:
+          - sensor.consumo_da_casa
+  - icon: mdi:cog
+    label: Ajustes
+    cards:
+      - type: entities
+        entities:
+          - input_boolean.modo_economia
+```
+
+### 6. Uma aba por pessoa, com override — [`pessoas.yaml`](examples/pessoas.yaml)
 
 O card inteiro é "só ícone", mas a aba da visita mostra o texto:
 
@@ -162,10 +225,56 @@ tabs:
     cards: [{ type: markdown, content: Ninguém por aqui. }]
 ```
 
-### 6. Sem casca — só as abas, encostadas no tema
+### 7. Aba do meio ativa — [`recortes.yaml`](examples/recortes.yaml)
 
-Casca transparente, sem relevo e sem respiro: o card some e ficam só as abas
-sobre o fundo do dashboard.
+O caso da foto das variações: com a aba do meio ligada, os **dois** recortes
+côncavos aparecem ao mesmo tempo.
+
+```yaml
+type: custom:mw-tab-card
+paper_color: violet-2
+shell_color: "#4c1d95"
+tab_display: text
+default_tab: 1
+panel_min_height: 180
+tabs:
+  - label: Sala
+    cards: [{ type: markdown, content: Sala }]
+  - label: Quarto
+    cards: [{ type: markdown, content: Quarto }]
+  - label: Casa
+    cards: [{ type: markdown, content: Casa }]
+```
+
+### 8. Sem relevo, abas centradas — [`sem-relevo.yaml`](examples/sem-relevo.yaml)
+
+```yaml
+type: custom:mw-tab-card
+paper_color: red-4
+shell_color: "#7f1d1d"
+elevation: false
+tab_stretch: false
+tab_align: center
+tab_display: both
+panel_min_height: 180
+tabs:
+  - label: Hoje
+    icon: mdi:chart-line
+    cards:
+      - type: history-graph
+        hours_to_show: 24
+        entities: [sensor.consumo_da_casa]
+  - label: Ajustes
+    icon: mdi:cog
+    cards:
+      - type: entities
+        entities: [input_number.limite_de_consumo]
+```
+
+### 9. Sem casca — [`sem-casca.yaml`](examples/sem-casca.yaml)
+
+Casca transparente, sem relevo e sem respiro: o card some do desenho e ficam
+só as abas sobre o fundo do dashboard.
 
 ```yaml
 type: custom:mw-tab-card
@@ -173,10 +282,13 @@ shell_color: "rgba(0, 0, 0, 0)"
 elevation: false
 padding: 0
 paper_color: paper
+tab_inactive_color: "rgba(120, 120, 120, 0.9)"
 tabs:
   - label: Hoje
+    icon: mdi:chart-line
     cards: [{ type: markdown, content: "**Hoje**" }]
   - label: Semana
+    icon: mdi:calendar-week
     cards: [{ type: markdown, content: "**Semana**" }]
 ```
 
@@ -193,8 +305,8 @@ tabs:
 | `tabs[].cards` | lista de cards | `[]` | qualquer card do HA, inclusive `custom:` |
 | `tab_position` | `top`/`bottom`/`left`/`right` | `bottom` | onde fica a faixa de abas |
 | `tab_display` | `icon`/`text`/`both` | `both` | o que a aba mostra |
-| `tab_stretch` | bool | `true` | abas dividem a faixa em partes iguais |
-| `tab_align` | `start`/`center`/`end` | `center` | só quando `tab_stretch: false` |
+| `tab_stretch` | bool | `true` | abas dividem a faixa em partes iguais — **só na faixa horizontal** |
+| `tab_align` | `start`/`center`/`end` | auto | onde a fila encosta quando não estica; auto = centro na horizontal, topo na vertical |
 | `tab_size` | px | `0` (auto) | altura da faixa (46) ou largura (104) |
 | `tab_font_size` / `tab_icon_size` | px | 11 / 20 | tipografia da aba |
 | `default_tab` | índice | `0` | aba aberta ao carregar |
@@ -244,7 +356,9 @@ Tudo pela UI, sem YAML:
   **+ adicionar card**, que abre o seletor de cards do próprio Home Assistant.
   O editor de cada card é o mesmo do HA (com as abas *Visual* e *Código*).
 - **Aparência** — posição, exibição, papel, faixa de título, raios, respiros,
-  relevo e comportamento das abas.
+  relevo e comportamento das abas. Campo que não faz efeito na configuração
+  atual não aparece (`tab_stretch` na faixa vertical, o alinhamento quando as
+  abas esticam, a faixa de título quando não há título).
 - **Cores** — seção com cor + transparência (alfa) por campo.
 
 > Se a versão do HA não entregar os editores internos
@@ -272,14 +386,18 @@ Tudo pela UI, sem YAML:
 node --check dist/mw-tab-card.js && node tools/probe.js
 ```
 
-O probe instancia card e editor fora do navegador (74 verificações: as 4
-posições, os recortes côncavos, os cantos que ficam retos, ícone/texto/ambos,
-criação e reciclagem dos cards de dentro, e as regras do editor) e roda no CI
-antes de qualquer release.
+O probe instancia card e editor fora do navegador (82 verificações: as 4
+posições, os recortes côncavos, os cantos que ficam retos, a regra de esticar
+só na horizontal, ícone/texto/ambos, criação e reciclagem dos cards de dentro,
+e as regras do editor) e roda no CI antes de qualquer release.
 
 Para ver a casca sem Home Assistant, abra `tools/preview.html` no navegador:
-seis variações lado a lado (as 4 posições, aba do meio ativa e a versão sem
-relevo), com cards de mentira dentro.
+todas as variações lado a lado, com cards de mentira dentro. As fotos deste
+README saem dessas mesmas variações:
+
+```bash
+tools/shots.sh          # regrava docs/*.png com o Chrome headless em 2×
+```
 
 ## Licença
 

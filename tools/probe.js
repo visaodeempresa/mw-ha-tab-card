@@ -193,6 +193,23 @@ const centered = mk({ ...BASE, tab_stretch: false, tab_align: "center" });
 ok(vars(centered)["--pr-bl"] === "22px" && vars(centered)["--pr-br"] === "22px",
   "abas centradas: nenhum canto do painel deveria ficar reto");
 
+/* 4b. esticar é só da faixa horizontal: na vertical a aba é do tamanho do
+   conteúdo, senão vira um bloco de meia tela e deixa de parecer aba */
+has(tabsHtml(mk({ ...BASE, tab_position: "bottom" })), "stretch",
+  "faixa horizontal deveria esticar as abas por padrão");
+ok(!tabsHtml(mk({ ...BASE, tab_position: "left" })).includes("stretch"),
+  "faixa vertical não pode esticar as abas");
+ok(!tabsHtml(mk({ ...BASE, tab_position: "right", tab_stretch: true })).includes("stretch"),
+  "faixa vertical não estica nem quando o YAML pede");
+/* e por isso o alinhamento padrão da vertical é 'no começo', não 'no centro' */
+ok(vars(mk({ ...BASE, tab_position: "left" }))["--talign"] === "flex-start",
+  "faixa vertical deveria começar no topo por padrão");
+ok(vars(mk({ ...BASE, tab_position: "bottom", tab_stretch: false }))["--talign"] === "center",
+  "faixa horizontal sem stretch deveria centralizar por padrão");
+/* primeira aba da vertical encosta no topo → canto do painel fica reto */
+ok(vars(mk({ ...BASE, tab_position: "left" }))["--pr-tl"] === "0px",
+  "primeira aba à esquerda deveria deixar reto o canto superior esquerdo do painel");
+
 /* 5. ícone / texto / ambos */
 const both = tabsHtml(mk({ ...BASE, tab_display: "both" }));
 ok(both.includes("ha-icon") && both.includes("Carteira"), "display 'both' deveria ter ícone e texto");
@@ -282,6 +299,12 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   ed._config = { ...ed._config, tab_stretch: false };
   ed._renderMainForm();
   ok(names(ed._form.schema).includes("tab_align"), "tab_align deveria aparecer com stretch desligado");
+  /* na faixa vertical o interruptor de esticar some (não faria nada) */
+  ed._config = { tabs: BASE.tabs, tab_position: "left" };
+  ed._renderMainForm();
+  const vert = names(ed._form.schema);
+  ok(!vert.includes("tab_stretch"), "tab_stretch não deveria aparecer com a faixa vertical");
+  ok(vert.includes("tab_align"), "tab_align deveria aparecer com a faixa vertical");
 
   /* default intacto não polui o YAML */
   ed.setConfig(JSON.parse(JSON.stringify(BASE)));

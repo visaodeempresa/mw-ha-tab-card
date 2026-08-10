@@ -1,0 +1,24 @@
+# Abas À DIREITA, só ícone — foto docs/posicoes.png, quarto card.
+# Na faixa vertical as abas são do tamanho do conteúdo e começam no topo:
+# esticar cada aba pela altura toda deixaria de parecer aba.
+type: custom:mw-tab-card
+tab_position: right
+tab_display: icon
+tab_size: 56
+paper_color: green-3
+shell_color: "#14532d"
+panel_min_height: 246
+tabs:
+  - icon: mdi:home
+    label: Casa            # o texto vira a dica ao passar o mouse
+    cards:
+      - type: history-graph
+        hours_to_show: 12
+        entities:
+          - sensor.consumo_da_casa
+  - icon: mdi:cog
+    label: Ajustes
+    cards:
+      - type: entities
+        entities:
+          - input_boolean.modo_economia

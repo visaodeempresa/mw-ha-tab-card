@@ -1,0 +1,19 @@
+# Casca transparente, sem relevo e sem respiro: o card some do desenho e
+# ficam só as abas sobre o fundo do dashboard.
+type: custom:mw-tab-card
+shell_color: "rgba(0, 0, 0, 0)"
+elevation: false
+padding: 0
+paper_color: paper
+tab_inactive_color: "rgba(120, 120, 120, 0.9)"
+tabs:
+  - label: Hoje
+    icon: mdi:chart-line
+    cards:
+      - type: markdown
+        content: "**Hoje**"
+  - label: Semana
+    icon: mdi:calendar-week
+    cards:
+      - type: markdown
+        content: "**Semana**"

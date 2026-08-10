@@ -1,0 +1,29 @@
+# Abas EM CIMA, ícone e texto — foto docs/posicoes.png, segundo card.
+# Papel amarelo-2 sobre casca cor de ferrugem.
+type: custom:mw-tab-card
+tab_position: top
+tab_display: both
+paper_color: yellow-2
+shell_color: "#7c2d12"
+panel_min_height: 200
+tabs:
+  - label: Agora
+    icon: mdi:flash
+    cards:
+      - type: custom:power-button-card
+        entity: switch.microondas
+        sensor_potencia: sensor.microondas_potencia
+        only_power: true
+  - label: Histórico
+    icon: mdi:chart-line
+    cards:
+      - type: history-graph
+        hours_to_show: 24
+        entities:
+          - sensor.consumo_da_casa
+  - label: Ajustes
+    icon: mdi:cog
+    cards:
+      - type: entities
+        entities:
+          - input_number.limite_de_consumo

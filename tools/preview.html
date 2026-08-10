@@ -1,109 +1,37 @@
 <!doctype html>
 <!-- Bancada do mw-tab-card: roda no navegador, sem Home Assistant.
-     Stubs de <ha-card>, <ha-icon> e de window.loadCardHelpers — os "cards de
-     dentro" aqui são desenhos de mentira, só para conferir a casca (fusão da
-     aba com o painel, recortes côncavos, papel, relevo 3D e as 4 posições). -->
+     As variações vêm de tools/bench-stubs.js (as mesmas que viram as fotos do
+     README), então bancada e README nunca discordam. -->
 <html lang="pt-BR"><head><meta charset="utf-8"><title>MW Tab Card — bancada</title>
 <style>
   :root{ --card-background-color:#1c2230; --primary-text-color:#e8eef7;
          --secondary-text-color:#93a4bb; --ha-card-border-radius:16px; --divider-color:#38415a; }
-  body{margin:0;background:#6d0b26;font:14px/1.45 'Graphik',system-ui,-apple-system,sans-serif;padding:22px;color:#fff}
-  h2{font:600 12px/1 system-ui;color:#ffd7e2;margin:26px 0 10px;letter-spacing:.12em;text-transform:uppercase}
-  .grid{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
-  .col{width:330px}
-  .wide{width:430px}
-  .cap{font-size:11px;color:#ffc0d0;margin-top:8px;text-align:center}
+  body{margin:0;background:#14171e;font:14px/1.45 'Graphik',system-ui,-apple-system,sans-serif;
+       padding:24px;color:#fff}
+  h1{font:700 15px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;color:#ffd7e2;margin:0 0 22px}
+  .grid{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .item{display:flex;flex-direction:column;gap:10px}
+  .cap{font:600 11px/1.3 system-ui;letter-spacing:.1em;text-transform:uppercase;
+       color:#8a93a8;text-align:center}
 </style></head><body>
-<script>
-  customElements.define("ha-card", class extends HTMLElement {
-    connectedCallback(){ if(this._d) return; this._d = true;
-      this.attachShadow({mode:"open"}).innerHTML =
-        `<style>:host{display:block;background:var(--ha-card-background,var(--card-background-color));
-          border-radius:var(--ha-card-border-radius,16px);color:var(--primary-text-color)}</style><slot></slot>`; }
-  });
-  const GLYPH = { "mdi:wallet":"▤", "mdi:trophy-outline":"♛", "mdi:sofa":"◧", "mdi:bed":"▤",
-    "mdi:chevron-right":"›", "mdi:home":"⌂", "mdi:chart-line":"◹", "mdi:cog":"⚙",
-    "mdi:lightbulb":"◉", "mdi:thermometer":"↕", "mdi:water":"◐", "mdi:shield-home":"⬟" };
-  customElements.define("ha-icon", class extends HTMLElement {
-    static get observedAttributes(){ return ["icon"]; }
-    _p(){ this.style.cssText="display:flex;align-items:center;justify-content:center;font-size:inherit;line-height:1";
-          this.textContent = GLYPH[this.getAttribute("icon")] || "●"; }
-    attributeChangedCallback(){ this._p(); }  connectedCallback(){ this._p(); }
-  });
-
-  // --- stub do loadCardHelpers: cards de mentira só para a bancada ---
-  const DEMOS = {
-    wallet: `<div style="display:grid;grid-template-columns:1fr 1fr;text-align:center;padding:8px 0 20px">
-        <div style="border-right:1px solid rgba(0,0,0,.10)">
-          <div style="font-size:44px;font-weight:800;letter-spacing:-1px">983</div>
-          <div style="font-size:13px;opacity:.5;margin-top:-4px">Total Hours</div></div>
-        <div><div style="font-size:44px;font-weight:800;letter-spacing:-1px">24k</div>
-          <div style="font-size:13px;opacity:.5;margin-top:-4px">Total Earned</div></div></div>`,
-    rows: `<div style="border-radius:18px;background:linear-gradient(145deg,#fffdf8,#f1ece1);
-        box-shadow:0 2px 6px rgba(0,0,0,.10),0 8px 18px rgba(0,0,0,.07),inset 2px 2px 5px rgba(255,255,255,.9);padding:6px 14px">
-        ${[["$ 1,750","Amazone Camp…"],["$ 820","Extention"]].map((r,i)=>`
-        <div style="display:flex;align-items:center;gap:12px;padding:16px 0;${i?"border-top:1px solid rgba(0,0,0,.07)":""}">
-          <div style="width:22px;height:22px;border-radius:50%;border:1px solid rgba(0,0,0,.18);
-            display:flex;align-items:center;justify-content:center;font-size:14px;opacity:.35">+</div>
-          <div style="flex:1"><div style="font-size:21px;font-weight:700">${r[0]}</div>
-            <div style="font-size:14px;color:#c0335c">${r[1]}</div></div>
-          <div style="width:44px;height:44px;border-radius:50%;background:#fff;
-            box-shadow:0 3px 8px rgba(0,0,0,.16),0 8px 16px rgba(0,0,0,.08);
-            display:flex;align-items:center;justify-content:center;font-size:19px">→</div></div>`).join("")}</div>`,
-    awards: `<div style="text-align:center;padding:26px 0"><div style="font-size:40px">♛</div>
-        <div style="font-size:15px;opacity:.55;margin-top:8px">Nenhum prêmio ainda</div></div>`,
-    generic: (t) => `<div style="padding:18px 4px"><div style="font-size:15px;font-weight:600">${t}</div>
-        <div style="font-size:13px;opacity:.55;margin-top:6px">card de exemplo da bancada</div></div>`,
-  };
-  window.loadCardHelpers = async () => ({
-    createCardElement(cfg){
-      const el = document.createElement("div");
-      el.innerHTML = DEMOS[cfg.demo] || DEMOS.generic(cfg.title || cfg.type || "card");
-      Object.defineProperty(el, "hass", { set(){}, configurable:true });
-      el.getCardSize = () => 3;
-      return el;
-    },
-  });
-</script>
+<h1>MW Tab Card — bancada</h1>
+<div class="grid" id="grid"></div>
+<script src="bench-stubs.js"></script>
 <script src="../dist/mw-tab-card.js"></script>
 <script>
-  const WALLET = (extra={}) => ({
-    header: "UPDATE PAYMENT METHOD", header_icon: "mdi:chevron-right",
-    tabs: [
-      { label: "My Wallet", icon: "mdi:wallet", cards: [{demo:"wallet"},{demo:"rows"}] },
-      { label: "My Awards", icon: "mdi:trophy-outline", cards: [{demo:"awards"}] },
-    ], ...extra,
-  });
-
-  const CASES = [
-    ["Clone da referência (abas embaixo, só texto)", "wide",
-      WALLET({ tab_display:"text", tab_font_size:12 })],
-    ["Abas em cima · ícone e texto (com faixa de título)", "col",
-      WALLET({ tab_position:"top", tab_display:"both" })],
-    ["Abas à esquerda · papel azul-4", "col",
-      WALLET({ tab_position:"left", paper_color:"blue-4", shell_color:"#123f6b",
-               header:"", header_icon:"" })],
-    ["Abas à direita · só ícone", "col",
-      WALLET({ tab_position:"right", tab_display:"icon", tab_size:56, paper_color:"green-3",
-               shell_color:"#14532d", header:"", header_icon:"" })],
-    ["3 abas · aba do meio ativa (2 recortes)", "col",
-      { paper_color:"violet-2", shell_color:"#4c1d95", default_tab:1, tab_display:"both",
-        tabs:[{label:"Sala",icon:"mdi:sofa",cards:[{title:"Sala"}]},
-              {label:"Quarto",icon:"mdi:bed",cards:[{demo:"awards"}]},
-              {label:"Casa",icon:"mdi:home",cards:[{title:"Casa"}]}] }],
-    ["Sem relevo · abas centradas (stretch off)", "col",
-      { paper_color:"yellow-5", shell_color:"#7c2d12", elevation:false, tab_stretch:false,
-        tab_display:"both", tabs:[{label:"Hoje",icon:"mdi:chart-line",cards:[{title:"Hoje"}]},
-              {label:"Ajustes",icon:"mdi:cog",cards:[{title:"Ajustes"}]}] }],
-  ];
-
-  for (const [title, cls, cfg] of CASES) {
-    const h = document.createElement("h2"); h.textContent = title; document.body.appendChild(h);
-    const box = document.createElement("div"); box.className = "grid"; document.body.appendChild(box);
-    const col = document.createElement("div"); col.className = cls; box.appendChild(col);
+  const grid = document.getElementById("grid");
+  for (const [name, c] of Object.entries(window.MW_CASES)) {
+    const item = document.createElement("div");
+    item.className = "item";
+    item.style.width = c.width + "px";
     const card = document.createElement("mw-tab-card");
-    card.setConfig(cfg); card.hass = { states:{}, callService(){} };
-    col.appendChild(card);
+    card.setConfig(JSON.parse(JSON.stringify(c.cfg)));
+    card.hass = { states: {}, callService() {} };
+    const cap = document.createElement("div");
+    cap.className = "cap";
+    cap.textContent = `${c.title}  ·  #${name}`;
+    item.append(card, cap);
+    grid.appendChild(item);
   }
 </script>
 </body></html>

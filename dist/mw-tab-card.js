@@ -13,8 +13,11 @@
   const DEFAULTS = {
     tab_position: "bottom",     // top | bottom | left | right
     tab_display: "both",        // icon | text | both
-    tab_stretch: true,          // abas dividem a faixa em partes iguais
-    tab_align: "center",        // usado só quando tab_stretch = false
+    // abas dividem a faixa em partes iguais. Só vale para faixa horizontal:
+    // faixa vertical com abas esticadas vira um bloco de meia tela por aba e
+    // deixa de parecer aba — lá elas são do tamanho do conteúdo, sempre.
+    tab_stretch: true,
+    tab_align: "",              // "" = automático: centro na horizontal, topo na vertical
     tab_size: 0,                // 0 = automático (46px na horizontal, 104 na vertical)
     tab_font_size: 11,
     tab_icon_size: 20,
@@ -48,6 +51,13 @@
 
   const POSITIONS = ["top", "bottom", "left", "right"];
   const DISPLAYS = ["icon", "text", "both"];
+  const ALIGNS = ["start", "center", "end"];
+  // faixa horizontal: a fila centrada é o que o desenho de referência mostra.
+  // Vertical: começando no topo — fila de abas centrada na lateral flutua e
+  // não se lê como abas.
+  const autoAlign = (horiz) => (horiz ? "center" : "start");
+  const alignOf = (cfg, horiz) =>
+    (ALIGNS.includes(cfg.tab_align) ? cfg.tab_align : autoAlign(horiz));
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -358,8 +368,10 @@
       const horiz = this._horizontal();
       const n = c.tabs.length;
       const active = Math.min(Math.max(0, this._active | 0), n - 1);
-      const stretch = c.tab_stretch !== false;
-      const align = ["start", "center", "end"].includes(c.tab_align) ? c.tab_align : "center";
+      // esticar é opção só na faixa horizontal (ver DEFAULTS.tab_stretch)
+      const stretch = horiz ? c.tab_stretch !== false : false;
+      const align = alignOf(c, horiz);
+      this._stretch = stretch;
 
       const pr = num(c.panel_radius, 22);
       const nr = num(c.notch_radius, 14);
@@ -433,7 +445,7 @@
 
     _paintTabs() {
       const c = this._config;
-      const stretch = c.tab_stretch !== false;
+      const stretch = this._stretch;
       const gDisp = DISPLAYS.includes(c.tab_display) ? c.tab_display : "both";
       const html = c.tabs.map((t, i) => {
         const disp = DISPLAYS.includes(t.display) ? t.display : gDisp;
@@ -572,7 +584,7 @@
     tab_position: "Posição das abas",
     tab_display: "O que aparece na aba",
     tab_stretch: "Abas dividem a faixa em partes iguais",
-    tab_align: "Alinhamento das abas",
+    tab_align: "Onde a fila de abas encosta",
     tab_size: "Tamanho da faixa de abas (0 = automático)",
     tab_font_size: "Tamanho do texto da aba",
     tab_icon_size: "Tamanho do ícone da aba",
@@ -951,7 +963,11 @@
 
     _renderMainForm() {
       const c = { ...DEFAULTS, ...this._config };
-      const stretch = c.tab_stretch !== false;
+      const pos = POSITIONS.includes(c.tab_position) ? c.tab_position : "bottom";
+      const horiz = pos === "top" || pos === "bottom";
+      // esticar não existe na faixa vertical: esconder é mais honesto que
+      // oferecer um interruptor que não faz nada
+      const stretch = horiz ? c.tab_stretch !== false : false;
       this._form.hass = this._hass;
       this._form.schema = [
         {
@@ -960,7 +976,7 @@
             { name: "tab_display", selector: { select: { mode: "dropdown", options: DISP_OPTIONS } } },
           ],
         },
-        { name: "tab_stretch", selector: { boolean: {} } },
+        ...(horiz ? [{ name: "tab_stretch", selector: { boolean: {} } }] : []),
         ...(stretch ? [] : [{ name: "tab_align", selector: { select: { mode: "dropdown", options: [
           { value: "start", label: "No começo" }, { value: "center", label: "No centro" }, { value: "end", label: "No fim" },
         ] } } }]),
@@ -1001,7 +1017,7 @@
         { name: "keep_alive", selector: { boolean: {} } },
         { name: "preload", selector: { boolean: {} } },
       ];
-      const data = { ...c };
+      const data = { ...c, tab_align: alignOf(c, horiz) };
       delete data.tabs;
       this._form.data = data;
     }
@@ -1015,6 +1031,11 @@
         if (val === undefined || val === null) continue;
         patch[k] = val;
       }
+      // alinhamento igual ao automático da posição não vai para o YAML
+      const pos = POSITIONS.includes(patch.tab_position || this._config.tab_position)
+        ? (patch.tab_position || this._config.tab_position) : "bottom";
+      const horiz = pos === "top" || pos === "bottom";
+      if (patch.tab_align === autoAlign(horiz)) patch.tab_align = "";
       this._patch(patch);
       this._renderMainForm();   // campos condicionais (alinhamento, faixa)
     }

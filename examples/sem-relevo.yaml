@@ -1,0 +1,25 @@
+# Sem relevo e com as abas do tamanho do texto, centradas — foto
+# docs/variacoes.png, segundo card. Painel chapado para quem acha o
+# neumórfico pesado demais no celular.
+type: custom:mw-tab-card
+paper_color: red-4
+shell_color: "#7f1d1d"
+elevation: false
+tab_stretch: false
+tab_align: center
+tab_display: both
+panel_min_height: 180
+tabs:
+  - label: Hoje
+    icon: mdi:chart-line
+    cards:
+      - type: history-graph
+        hours_to_show: 24
+        entities:
+          - sensor.consumo_da_casa
+  - label: Ajustes
+    icon: mdi:cog
+    cards:
+      - type: entities
+        entities:
+          - input_number.limite_de_consumo

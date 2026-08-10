@@ -1,0 +1,23 @@
+# Uma aba por pessoa, só ícone — com uma aba fugindo do padrão do card.
+type: custom:mw-tab-card
+tab_display: icon
+tab_position: bottom
+paper_color: green-3
+shell_color: "#14532d"
+tabs:
+  - icon: mdi:account
+    label: Maycon
+    cards:
+      - type: entities
+        entities: [device_tracker.maycon]
+  - icon: mdi:account-heart
+    label: Cris
+    cards:
+      - type: entities
+        entities: [device_tracker.cris]
+  - icon: mdi:account-question
+    label: Visitas
+    display: both          # esta aba mostra ícone E texto
+    cards:
+      - type: markdown
+        content: Ninguém por aqui.
