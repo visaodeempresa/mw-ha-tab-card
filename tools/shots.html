@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- Página de fotos do README: desenha UM arranjo por vez, escolhido pelo hash
+     da URL, para o Chrome headless fotografar. Quem tira as fotos é
+     tools/shots.sh; para olhar as variações lado a lado use tools/preview.html. -->
+<html lang="pt-BR"><head><meta charset="utf-8"><title>MW Tab Card — fotos</title>
+<style>
+  :root{ --card-background-color:#1c2230; --primary-text-color:#e8eef7;
+         --secondary-text-color:#93a4bb; --ha-card-border-radius:16px; --divider-color:#38415a; }
+  html,body{margin:0;background:#14171e;
+    font:14px/1.45 'Graphik',system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff}
+  #stage{display:flex;gap:26px;align-items:flex-start;padding:26px;width:max-content}
+  .item{display:flex;flex-direction:column;gap:10px}
+  .cap{font:600 11px/1.3 system-ui;letter-spacing:.1em;text-transform:uppercase;
+       color:#8a93a8;text-align:center}
+</style></head><body>
+<div id="stage"></div>
+<script src="bench-stubs.js"></script>
+<script src="../dist/mw-tab-card.js"></script>
+<script>
+  // #clone            → um arranjo só, sem legenda
+  // #top,left,right   → vários lado a lado, com legenda
+  const names = (location.hash.slice(1) || "clone").split(",").filter(Boolean);
+  const stage = document.getElementById("stage");
+  const solo = names.length === 1;
+
+  for (const name of names) {
+    const c = window.MW_CASES[name];
+    if (!c) continue;
+    const item = document.createElement("div");
+    item.className = "item";
+    item.style.width = c.width + "px";
+    const card = document.createElement("mw-tab-card");
+    card.setConfig(JSON.parse(JSON.stringify(c.cfg)));
+    card.hass = { states: {}, callService() {} };
+    item.appendChild(card);
+    if (!solo) {
+      const cap = document.createElement("div");
+      cap.className = "cap";
+      cap.textContent = c.title;
+      item.appendChild(cap);
+    }
+    stage.appendChild(item);
+  }
+
+  // o shots.sh lê estas medidas para dimensionar a janela do Chrome
+  window.addEventListener("load", () => setTimeout(() => {
+    const r = stage.getBoundingClientRect();
+    document.title = `${Math.ceil(r.width)}x${Math.ceil(r.height)}`;
+  }, 120));
+</script>
+</body></html>

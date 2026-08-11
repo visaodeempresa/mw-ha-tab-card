@@ -1,0 +1,17 @@
+# O mínimo: duas abas, cada uma com a sua pilha de cards.
+# Tudo o mais é default (abas embaixo, ícone e texto, papel creme).
+type: custom:mw-tab-card
+tabs:
+  - label: Sala
+    icon: mdi:sofa
+    cards:
+      - type: entities
+        entities:
+          - light.sala
+          - switch.tomada_da_tv
+  - label: Quarto
+    icon: mdi:bed
+    cards:
+      - type: entities
+        entities:
+          - light.quarto

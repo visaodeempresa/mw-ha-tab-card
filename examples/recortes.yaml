@@ -1,0 +1,22 @@
+# Aba do MEIO ativa — foto docs/variacoes.png, primeiro card.
+# É o caso que mostra os DOIS recortes côncavos ao mesmo tempo; nas abas das
+# pontas um dos dois some, porque a aba encosta na borda do painel.
+type: custom:mw-tab-card
+paper_color: violet-2
+shell_color: "#4c1d95"
+tab_display: text
+default_tab: 1
+panel_min_height: 180
+tabs:
+  - label: Sala
+    cards:
+      - type: markdown
+        content: Sala
+  - label: Quarto
+    cards:
+      - type: markdown
+        content: Quarto
+  - label: Casa
+    cards:
+      - type: markdown
+        content: Casa
