@@ -1116,5 +1116,5 @@
     documentationURL: "https://github.com/visaodeempresa/mw-ha-tab-card",
   });
 
-  console.info("%c MW-TAB-CARD %c 0.2.0 ", "background:#1a1a1a;color:#fdfaf3;font-weight:700;", "background:#e8e3d8;color:#1a1a1a;font-weight:700;");
+  console.info("%c MW-TAB-CARD %c 0.3.0 ", "background:#1a1a1a;color:#fdfaf3;font-weight:700;", "background:#e8e3d8;color:#1a1a1a;font-weight:700;");
 })();
