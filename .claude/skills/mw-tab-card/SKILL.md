@@ -40,6 +40,7 @@ as outras na bancada.
 |---|---|---|
 | Node | `node --version` | sem probe e sem CI local |
 | Navegador | `tools/preview.html` | sem conferência visual — **diga isso**, não deixe implícito |
+| Ícone novo na bancada | path em `https://unpkg.com/@mdi/js/mdi.js` → `MDI` de `bench-stubs.js` | o ícone sai como losango vermelho de erro (e o probe reprova) |
 | SSH no HA | `ssh -F PROJECTS/new_wakeword/ssh/ssh_config ha-leticia` | sem deploy de teste; só release via HACS |
 
 ## Fluxo
@@ -71,6 +72,7 @@ as outras na bancada.
 | Ícone/texto da aba **ativa** desalinhado das inativas | a costura de 1px escrita como `padding-<lado>:1px` seco **apaga** o respiro daquele lado (o atalho `padding` já passou) | somar: `padding-<lado>:calc(<respiro> + 1px)` |
 | Aba lateral vira pastilha/oval | `--tr` (= `panel_radius`) nas duas quinas de fora se encontra no meio de uma aba curta | `--tminlen` = `max(2×pr + 6, 2×nr + 14)` |
 | Ícone grande vaza da aba lateral | `ha-icon` é `flex:none`; faixa mais fina que ele não o encolhe, ele transborda para a casca | piso da faixa é `max(var(--tmin), calc(var(--tis) + 8px))` |
+| Ícone virou bolinha na bancada e nas fotos | o dublê de `ha-icon` escrevia **caractere de texto** com `font-size:inherit` e caía num "●" para o que não conhecia — `--mdc-icon-size` não tinha efeito nenhum | `bench-stubs.js` desenha o path do MDI em `<svg>`; ícone fora da lista sai como losango **vermelho** (grita), e o probe confere isso |
 
 ## Verificação (o que faz a tarefa estar pronta)
 

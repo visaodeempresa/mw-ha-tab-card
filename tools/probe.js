@@ -398,6 +398,24 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   ok(last.tabs[0].label === "Novo nome" && !("display" in last.tabs[0]),
     "renomear a aba deveria gravar o nome e não gravar display vazio");
 
+  /* --------- a bancada tem que desenhar ícone, não bolinha ---------
+     O dublê antigo escrevia um caractere de texto e caía num "●" para todo
+     ícone que não conhecesse — as fotos do README e qualquer conferência de
+     tamanho de ícone viravam bolinha, sem ninguém perceber. Aqui isso é
+     verificado no texto do arquivo, sem navegador. */
+  const bench = fs.readFileSync(path.join(__dirname, "bench-stubs.js"), "utf8");
+  has(bench, "<svg viewBox=\"0 0 24 24\"", "a bancada deveria desenhar o ícone em SVG");
+  ok(!/textContent\s*=\s*GLYPH/.test(bench),
+    "voltou o dublê de ícone por caractere de texto — ele ignora --mdc-icon-size");
+  const mdiKeys = new Set([...bench.matchAll(/^\s{4}"([a-z0-9-]+)":\s*"[Mm]/gm)].map((m) => m[1]));
+  ok(mdiKeys.size >= 10, `a bancada deveria trazer os paths do MDI (achei ${mdiKeys.size})`);
+  const usados = new Set([...bench.matchAll(/icon:\s*"mdi:([a-z0-9-]+)"/g)].map((m) => m[1]));
+  const semPath = [...usados].filter((n) => !mdiKeys.has(n));
+  ok(semPath.length === 0,
+    `ícone usado nas variações sem path na bancada (sai como losango de erro): ${semPath.join(", ")}`);
+  ok(mdiKeys.has("help-rhombus-outline"),
+    "a bancada precisa do losango de interrogação para o ícone desconhecido gritar");
+
   /* --------------------------- fim --------------------------- */
   if (fails.length) {
     console.error(`\n✗ ${fails.length} verificação(ões) falharam:`);
