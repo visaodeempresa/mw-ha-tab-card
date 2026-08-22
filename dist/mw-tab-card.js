@@ -18,7 +18,8 @@
     // deixa de parecer aba — lá elas são do tamanho do conteúdo, sempre.
     tab_stretch: true,
     tab_align: "",              // "" = automático: centro na horizontal, topo na vertical
-    tab_size: 0,                // 0 = automático (46px na horizontal, 104 na vertical)
+    tab_size: 0,                // 0 = automático: 46px na horizontal; na vertical,
+                                // do tamanho do conteúdo (entre 46 e 168px)
     tab_font_size: 11,
     tab_icon_size: 20,
     default_tab: 0,
@@ -50,6 +51,11 @@
   };
 
   const POSITIONS = ["top", "bottom", "left", "right"];
+  // faixa vertical automática: nunca mais fina que a horizontal (46px, para o
+  // ícone não ficar espremido) nem mais larga que o rótulo pede — e nunca
+  // passando de SIDE_MAX / 45% do card, senão a aba come o painel.
+  const SIDE_MIN = 46;
+  const SIDE_MAX = 168;
   const DISPLAYS = ["icon", "text", "both"];
   const ALIGNS = ["start", "center", "end"];
   // faixa horizontal: a fila centrada é o que o desenho de referência mostra.
@@ -293,12 +299,23 @@
       const flow = {
         bottom: "column", top: "column-reverse", left: "row-reverse", right: "row",
       }[pos];
-      // 1px de sobreposição contra a costura de subpixel entre aba e painel
+      // respiro da aba: PAD_LEN corre ao longo da faixa, PAD_CROSS atravessa
+      // ela. Na horizontal a espessura vem toda de --tsize, então o respiro
+      // que atravessa é zero; na vertical o mesmo 14px de antes corre ao
+      // longo da faixa — é o que dá à aba lateral a mesma proporção da de
+      // cima/baixo em vez de uma tira mais larga que comprida.
+      const PAD_LEN = "14px";
+      const PAD_CROSS = horiz ? "0px" : "10px";
+      // 1px de sobreposição contra a costura de subpixel entre aba e painel.
+      // ARMADILHA: escrever `padding-left:1px` seco APAGA o respiro do lado
+      // que encosta no painel (o atalho `padding` já passou) e joga ícone e
+      // texto da aba ativa para dentro — 3,5px de desalinho em relação às
+      // abas inativas na faixa vertical. Somar, nunca substituir.
       const seam = {
-        bottom: "margin-top:-1px;padding-top:1px;",
-        top: "margin-bottom:-1px;padding-bottom:1px;",
-        left: "margin-right:-1px;padding-right:1px;",
-        right: "margin-left:-1px;padding-left:1px;",
+        bottom: `margin-top:-1px;padding-top:calc(${PAD_CROSS} + 1px);`,
+        top: `margin-bottom:-1px;padding-bottom:calc(${PAD_CROSS} + 1px);`,
+        left: `margin-right:-1px;padding-right:calc(${PAD_CROSS} + 1px);`,
+        right: `margin-left:-1px;padding-left:calc(${PAD_CROSS} + 1px);`,
       }[pos];
       const tabRadius = {
         bottom: "border-radius:0 0 var(--tr) var(--tr);",
@@ -336,15 +353,19 @@
         .pane > *{display:block;}
         .empty{opacity:.55;font-size:13px;text-align:center;padding:22px 8px;}
         .tabs{position:relative;z-index:1;display:flex;
-          ${horiz ? "flex-direction:row;height:var(--tsize);" : "flex-direction:column;width:var(--tsize);"}
+          ${horiz ? "flex-direction:row;height:var(--tsize);"
+            : "flex-direction:column;width:var(--tsize);max-width:var(--tmax);"
+              // o ícone manda no piso: espessura menor que ele o faria vazar
+              // da aba (ha-icon é flex:none) e sair ilegível por cima da casca
+              + "min-width:max(var(--tmin), calc(var(--tis) + 8px));"}
           justify-content:var(--talign);}
         .tab{appearance:none;-webkit-appearance:none;border:0;background:transparent;cursor:pointer;
           font-family:inherit;font-size:var(--tfs);font-weight:800;letter-spacing:0.1em;
           text-transform:uppercase;line-height:1.1;color:var(--mw-tab-off);
           position:relative;box-sizing:border-box;min-width:0;min-height:0;
           display:flex;align-items:center;justify-content:center;gap:7px;
-          padding:${horiz ? "0 14px" : "10px 8px"};
-          ${horiz ? "" : "flex-direction:column;text-align:center;"}
+          padding:${horiz ? `${PAD_CROSS} ${PAD_LEN}` : `${PAD_LEN} ${PAD_CROSS}`};
+          ${horiz ? "" : "flex-direction:column;text-align:center;min-height:var(--tminlen);"}
           -webkit-tap-highlight-color:transparent;touch-action:manipulation;
           transition:color .22s ease;}
         .tab.stretch{flex:1 1 0;}
@@ -420,7 +441,19 @@
       set("--cpad", `${num(c.content_padding, 18)}px`);
       set("--gap", `${num(c.card_gap, 12)}px`);
       set("--panel-min", `${num(c.panel_min_height, 0)}px`);
-      set("--tsize", `${num(c.tab_size, 0) || (horiz ? 46 : 104)}px`);
+      // Espessura da faixa. Horizontal: 46px por padrão, como sempre.
+      // Vertical: "automático" agora é do tamanho do conteúdo, entre SIDE_MIN
+      // e SIDE_MAX — os 104px fixos de antes sobravam largura numa faixa só
+      // de ícones (aba de 104×40: mais larga que comprida, e o painel perdia
+      // um terço do card). tab_size explícito continua mandando.
+      const tsz = num(c.tab_size, 0);
+      const sideAuto = !horiz && !tsz;
+      set("--tsize", tsz ? `${tsz}px` : (horiz ? `${SIDE_MIN}px` : "max-content"));
+      set("--tmin", sideAuto ? `${SIDE_MIN}px` : "0px");
+      set("--tmax", sideAuto ? `min(${SIDE_MAX}px, 45%)` : "none");
+      // comprimento mínimo da aba lateral: sem isso o arredondamento --tr das
+      // duas quinas de fora se encontra no meio e a aba vira uma pastilha
+      set("--tminlen", `${Math.max(2 * pr + 6, 2 * nr + 14)}px`);
       set("--tfs", `${num(c.tab_font_size, 11)}px`);
       set("--tis", `${num(c.tab_icon_size, 20)}px`);
       set("--hdr-inset", `${num(c.header_inset, 26)}px`);
@@ -585,7 +618,7 @@
     tab_display: "O que aparece na aba",
     tab_stretch: "Abas dividem a faixa em partes iguais",
     tab_align: "Onde a fila de abas encosta",
-    tab_size: "Tamanho da faixa de abas (0 = automático)",
+    tab_size: "Espessura da faixa de abas (0 = automático: na lateral, do tamanho do conteúdo)",
     tab_font_size: "Tamanho do texto da aba",
     tab_icon_size: "Tamanho do ícone da aba",
     default_tab: "Aba inicial",

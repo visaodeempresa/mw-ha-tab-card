@@ -48,7 +48,11 @@ as outras na bancada.
    campo em `_renderMainForm()` (aparência) ou `_renderTabForm()` (por aba).
 2. `node --check dist/mw-tab-card.js && node tools/probe.js`
 3. `IA/tools/check-embeds.sh`
-4. Abrir `tools/preview.html` — as 6 variações têm que continuar certas.
+4. Abrir `tools/preview.html` — as 7 variações têm que continuar certas.
+   Geometria não se confere no olho: medir no console é o que pega o
+   desalinho de 3,5px da aba ativa —
+   `[...sr.querySelectorAll(".tab")].map(t => t.firstElementChild.getBoundingClientRect().x)`
+   tem que dar o **mesmo** centro para aba ativa e inativas.
 5. Commit assinado (regra 00), feature branch, PR. **Merge é do dono.**
 
 ## Armadilhas (com sintoma)
@@ -63,6 +67,10 @@ as outras na bancada.
 | Editor de card de dentro não abre | HA não carregou `hui-card-element-editor` | `loadHuiEditors()` instancia o editor da pilha vertical para puxá-lo; se falhar, cai no JSON — **é esperado**, não é bug |
 | Perde o foco ao digitar no editor | recriar o `ha-form` ou o editor filho a cada tecla | `_writeCard()` só atualiza o rótulo da lista, nunca recria o editor aberto |
 | YAML ganha `tab_position: bottom` sozinho | default indo para a config | `_patch()` apaga tudo que for igual ao `DEFAULTS` |
+| Faixa lateral larga demais, painel espremido | `--tsize` fixo na vertical (eram 104px, valessem ícone ou rótulo) | vertical automática usa `max-content` entre `--tmin` (46) e `--tmax` (`min(168px, 45%)`) |
+| Ícone/texto da aba **ativa** desalinhado das inativas | a costura de 1px escrita como `padding-<lado>:1px` seco **apaga** o respiro daquele lado (o atalho `padding` já passou) | somar: `padding-<lado>:calc(<respiro> + 1px)` |
+| Aba lateral vira pastilha/oval | `--tr` (= `panel_radius`) nas duas quinas de fora se encontra no meio de uma aba curta | `--tminlen` = `max(2×pr + 6, 2×nr + 14)` |
+| Ícone grande vaza da aba lateral | `ha-icon` é `flex:none`; faixa mais fina que ele não o encolhe, ele transborda para a casca | piso da faixa é `max(var(--tmin), calc(var(--tis) + 8px))` |
 
 ## Verificação (o que faz a tarefa estar pronta)
 

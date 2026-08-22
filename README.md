@@ -47,6 +47,14 @@ esticar cada aba pela altura toda vira um bloco de meia tela e deixa de
 parecer aba. `tab_stretch` só existe na horizontal, e o editor esconde o
 interruptor quando ele não faria nada.
 
+A faixa vertical **se mede pelo conteúdo**: uma coluna só de ícones fica com
+os mesmos 46px de espessura da faixa horizontal, e uma com rótulo cresce até
+onde o rótulo pede — no máximo 168px ou 45% do card, o que vier primeiro
+(daí em diante o texto corta com reticências). O respiro da aba corre ao
+longo da faixa, como na horizontal, então a aba lateral tem a mesma
+proporção da de cima/embaixo em vez de virar uma tira larga e curta.
+`tab_size` continua mandando quando você quiser uma espessura fixa.
+
 ![Aba do meio ativa e versão sem relevo](docs/variacoes.png)
 
 Com a aba do meio ativa aparecem **os dois recortes** ao mesmo tempo; numa aba
@@ -155,7 +163,6 @@ continua valendo: vira a dica ao passar o mouse.
 type: custom:mw-tab-card
 tab_position: left
 tab_display: icon
-tab_size: 64
 paper_color: blue-3
 shell_color: "#123f6b"
 panel_min_height: 246
@@ -317,7 +324,7 @@ tabs:
 | `tab_display` | `icon`/`text`/`both` | `both` | o que a aba mostra |
 | `tab_stretch` | bool | `true` | abas dividem a faixa em partes iguais — **só na faixa horizontal** |
 | `tab_align` | `start`/`center`/`end` | auto | onde a fila encosta quando não estica; auto = centro na horizontal, topo na vertical |
-| `tab_size` | px | `0` (auto) | altura da faixa (46) ou largura (104) |
+| `tab_size` | px | `0` (auto) | espessura da faixa: auto = 46px na horizontal e, na vertical, do tamanho do conteúdo (entre 46 e 168px / 45% do card) |
 | `tab_font_size` / `tab_icon_size` | px | 11 / 20 | tipografia da aba |
 | `default_tab` | índice | `0` | aba aberta ao carregar |
 | `remember_tab` | bool | `false` | guarda a última aba **neste navegador** |

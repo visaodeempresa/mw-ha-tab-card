@@ -102,7 +102,8 @@
     },
     left: {
       title: "Abas à esquerda", width: 300,
-      cfg: { tab_position: "left", tab_display: "icon", tab_size: 64,
+      // sem tab_size: a faixa lateral automática se mede pelo conteúdo
+      cfg: { tab_position: "left", tab_display: "icon",
         paper_color: "blue-3", shell_color: "#123f6b", panel_min_height: 246,
         tabs: [{ label: "Sala", icon: "mdi:sofa", cards: [{ demo: "power" }] },
           { label: "Suíte", icon: "mdi:bed", cards: [{ demo: "chart" }] },
@@ -110,6 +111,7 @@
     },
     right: {
       title: "Abas à direita", width: 300,
+      // com tab_size na mão: continua valendo, sem piso nem teto por cima
       cfg: { tab_position: "right", tab_display: "icon", tab_size: 56,
         paper_color: "green-3", shell_color: "#14532d", panel_min_height: 246,
         tabs: [{ label: "Casa", icon: "mdi:home", cards: [{ demo: "chart" }] },
