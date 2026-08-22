@@ -40,7 +40,7 @@ as outras na bancada.
 |---|---|---|
 | Node | `node --version` | sem probe e sem CI local |
 | Navegador | `tools/preview.html` | sem conferência visual — **diga isso**, não deixe implícito |
-| Ícone novo na bancada | path em `https://unpkg.com/@mdi/js/mdi.js` → `MDI` de `bench-stubs.js` | o ícone sai como losango vermelho de erro (e o probe reprova) |
+| Ícone novo na bancada | `IA/lib/bench-ha-icon/tools/mdi-paths.sh --from tools/bench-stubs.js` → colar no mapa `MDI` | o ícone sai como losango vermelho de erro (e o probe reprova) |
 | SSH no HA | `ssh -F PROJECTS/new_wakeword/ssh/ssh_config ha-leticia` | sem deploy de teste; só release via HACS |
 
 ## Fluxo
@@ -48,7 +48,8 @@ as outras na bancada.
 1. Editar `dist/mw-tab-card.js` — default em `DEFAULTS`, rótulo em `LABELS`,
    campo em `_renderMainForm()` (aparência) ou `_renderTabForm()` (por aba).
 2. `node --check dist/mw-tab-card.js && node tools/probe.js`
-3. `IA/tools/check-embeds.sh`
+3. `IA/tools/check-embeds.sh` — guarda `paper-palette` **e** `bench-ha-icon`
+   (o dublê de ícone da bancada; a lista de paths é deste repo, o dublê não)
 4. Abrir `tools/preview.html` — as 7 variações têm que continuar certas.
    Geometria não se confere no olho: medir no console é o que pega o
    desalinho de 3,5px da aba ativa —
@@ -72,7 +73,7 @@ as outras na bancada.
 | Ícone/texto da aba **ativa** desalinhado das inativas | a costura de 1px escrita como `padding-<lado>:1px` seco **apaga** o respiro daquele lado (o atalho `padding` já passou) | somar: `padding-<lado>:calc(<respiro> + 1px)` |
 | Aba lateral vira pastilha/oval | `--tr` (= `panel_radius`) nas duas quinas de fora se encontra no meio de uma aba curta | `--tminlen` = `max(2×pr + 6, 2×nr + 14)` |
 | Ícone grande vaza da aba lateral | `ha-icon` é `flex:none`; faixa mais fina que ele não o encolhe, ele transborda para a casca | piso da faixa é `max(var(--tmin), calc(var(--tis) + 8px))` |
-| Ícone virou bolinha na bancada e nas fotos | o dublê de `ha-icon` escrevia **caractere de texto** com `font-size:inherit` e caía num "●" para o que não conhecia — `--mdc-icon-size` não tinha efeito nenhum | `bench-stubs.js` desenha o path do MDI em `<svg>`; ícone fora da lista sai como losango **vermelho** (grita), e o probe confere isso |
+| Ícone virou bolinha na bancada e nas fotos | o dublê de `ha-icon` escrevia **caractere de texto** com `font-size:inherit` e caía num "●" para o que não conhecia — `--mdc-icon-size` não tinha efeito nenhum | o dublê agora é o bloco canônico `IA/lib/bench-ha-icon` embutido em `bench-stubs.js`: desenha o path do MDI em `<svg>`, e ícone fora do mapa sai como losango **vermelho**. O probe confere, e o `check-embeds.sh` guarda o bloco (ADR 0009) |
 
 ## Verificação (o que faz a tarefa estar pronta)
 
