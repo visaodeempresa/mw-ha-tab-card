@@ -210,6 +210,58 @@ ok(vars(mk({ ...BASE, tab_position: "bottom", tab_stretch: false }))["--talign"]
 ok(vars(mk({ ...BASE, tab_position: "left" }))["--pr-tl"] === "0px",
   "primeira aba à esquerda deveria deixar reto o canto superior esquerdo do painel");
 
+/* 4c. faixa vertical: espessura do tamanho do conteúdo, não 104px fixos.
+   Era daí que vinha a "largura demais": uma faixa só de ícones ficava com
+   104px de largura e a aba, 104×40 — mais larga que comprida. */
+const vAuto = vars(mk({ ...BASE, tab_position: "right" }));
+ok(vAuto["--tsize"] === "max-content",
+  "faixa vertical automática deveria se medir pelo conteúdo (--tsize: max-content)");
+ok(vAuto["--tmin"] === "46px",
+  "faixa vertical automática precisa de espessura mínima (a mesma da horizontal)");
+has(vAuto["--tmax"], "168px", "faixa vertical automática precisa de teto de largura");
+has(vAuto["--tmax"], "45%", "o teto da faixa vertical também tem que ser relativo ao card");
+/* horizontal segue com os 46px de sempre e sem min/max atrapalhando */
+const hAuto = vars(mk({ ...BASE, tab_position: "bottom" }));
+ok(hAuto["--tsize"] === "46px", "faixa horizontal automática deveria continuar com 46px");
+ok(hAuto["--tmin"] === "0px" && hAuto["--tmax"] === "none",
+  "min/max de largura são da faixa vertical — não podem sobrar na horizontal");
+/* tab_size explícito continua mandando, sem piso nem teto por cima dele */
+const vFix = vars(mk({ ...BASE, tab_position: "left", tab_size: 56 }));
+ok(vFix["--tsize"] === "56px", "tab_size explícito deveria mandar na espessura da faixa");
+ok(vFix["--tmin"] === "0px" && vFix["--tmax"] === "none",
+  "com tab_size explícito, piso e teto automáticos têm que sair da frente");
+/* comprimento mínimo da aba lateral: sem ele os dois cantos arredondados se
+   encontram no meio e a aba vira pastilha */
+ok(vars(mk({ ...BASE, tab_position: "left" }))["--tminlen"] === "50px",
+  "aba lateral precisa de comprimento mínimo (2×panel_radius + 6)");
+ok(vars(mk({ ...BASE, tab_position: "left", panel_radius: 8, notch_radius: 20 }))["--tminlen"] === "54px",
+  "com recorte grande, o comprimento mínimo tem que caber os dois recortes");
+
+/* 4d. a costura de 1px SOMA ao respiro da aba, nunca o substitui. Trocar
+   apagava o respiro do lado que encosta no painel e jogava ícone e texto da
+   aba ativa 3,5px para dentro — o desalinho visível na faixa vertical. */
+for (const [pos, edge] of Object.entries(
+  { bottom: "top", top: "bottom", left: "right", right: "left" })) {
+  const css = style(mk({ ...BASE, tab_position: pos }));
+  const cross = (pos === "top" || pos === "bottom") ? "0px" : "10px";
+  has(css, `padding-${edge}:calc(${cross} + 1px);`,
+    `posição ${pos}: a costura deveria somar 1px ao respiro, não trocá-lo`);
+  ok(!css.includes(`padding-${edge}:1px;`),
+    `posição ${pos}: costura seca (padding-${edge}:1px) apaga o respiro da aba ativa`);
+}
+/* e o respiro da aba lateral corre ao longo da faixa, como na horizontal */
+has(style(mk({ ...BASE, tab_position: "left" })), "padding:14px 10px;",
+  "aba lateral: 14px ao longo da faixa (mesma proporção da horizontal)");
+has(style(mk({ ...BASE, tab_position: "bottom" })), "padding:0px 14px;",
+  "aba horizontal: respiro só nas laterais, espessura vem de --tsize");
+has(style(mk({ ...BASE, tab_position: "right" })), "max-width:var(--tmax);",
+  "faixa vertical deveria aplicar teto de largura");
+/* o piso da faixa vertical nunca pode ficar menor que o ícone: ele é
+   flex:none e vazaria da aba, ilegível por cima da casca */
+has(style(mk({ ...BASE, tab_position: "right" })),
+  "min-width:max(var(--tmin), calc(var(--tis) + 8px));",
+  "o piso da faixa vertical tem que respeitar o tamanho do ícone");
+
 /* 5. ícone / texto / ambos */
 const both = tabsHtml(mk({ ...BASE, tab_display: "both" }));
 ok(both.includes("ha-icon") && both.includes("Carteira"), "display 'both' deveria ter ícone e texto");
@@ -345,6 +397,24 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   ok(last.tabs[0].cards.length === 1, "renomear a aba não pode apagar os cards dela");
   ok(last.tabs[0].label === "Novo nome" && !("display" in last.tabs[0]),
     "renomear a aba deveria gravar o nome e não gravar display vazio");
+
+  /* --------- a bancada tem que desenhar ícone, não bolinha ---------
+     O dublê antigo escrevia um caractere de texto e caía num "●" para todo
+     ícone que não conhecesse — as fotos do README e qualquer conferência de
+     tamanho de ícone viravam bolinha, sem ninguém perceber. Aqui isso é
+     verificado no texto do arquivo, sem navegador. */
+  const bench = fs.readFileSync(path.join(__dirname, "bench-stubs.js"), "utf8");
+  has(bench, "<svg viewBox=\"0 0 24 24\"", "a bancada deveria desenhar o ícone em SVG");
+  ok(!/textContent\s*=\s*GLYPH/.test(bench),
+    "voltou o dublê de ícone por caractere de texto — ele ignora --mdc-icon-size");
+  const mdiKeys = new Set([...bench.matchAll(/^\s{4}"([a-z0-9-]+)":\s*"[Mm]/gm)].map((m) => m[1]));
+  ok(mdiKeys.size >= 10, `a bancada deveria trazer os paths do MDI (achei ${mdiKeys.size})`);
+  const usados = new Set([...bench.matchAll(/icon:\s*"mdi:([a-z0-9-]+)"/g)].map((m) => m[1]));
+  const semPath = [...usados].filter((n) => !mdiKeys.has(n));
+  ok(semPath.length === 0,
+    `ícone usado nas variações sem path na bancada (sai como losango de erro): ${semPath.join(", ")}`);
+  ok(mdiKeys.has("help-rhombus-outline"),
+    "a bancada precisa do losango de interrogação para o ícone desconhecido gritar");
 
   /* --------------------------- fim --------------------------- */
   if (fails.length) {
