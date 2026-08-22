@@ -15,21 +15,37 @@
     }
   });
 
-  /* <ha-icon> de mentira, desenhando o ícone DE VERDADE.
-   *
-   * ARMADILHA que já custou uma conferência: a versão anterior escrevia um
-   * caractere de texto ("▤", "⌂") com `font-size:inherit` e caía num "●"
-   * quando não conhecia o ícone. Resultado: toda foto e toda conferência de
-   * bancada mostrava bolinha, o tamanho do ícone (--mdc-icon-size) não tinha
-   * efeito nenhum, e dava para "aprovar" no olho um ajuste de ícone sem
-   * nunca ter visto um ícone. Aqui o desenho é o path do Material Design
-   * Icons (@mdi/js v7.4.47, Apache-2.0), num <svg> que ocupa a caixa toda —
-   * quem manda no tamanho é o CSS do card, como no HA.
-   *
-   * Ícone que não estiver nesta lista aparece como um losango vermelho de
-   * interrogação: some da tela como erro, nunca como bolinha discreta.
-   * Para acrescentar: pegar o path em https://unpkg.com/@mdi/js/mdi.js
-   * (`export var mdiNomeDoIcone = "..."`). */
+  /* Ícone da bancada: o dublê é o bloco canônico da área de IA
+   * (IA/lib/bench-ha-icon) — ele desenha o path do MDI num <svg>, então o
+   * tamanho vem do CSS do card como no HA, e ícone sem path sai como
+   * losango VERMELHO em vez de bolinha discreta. A lista de paths é deste
+   * repo (cada bancada usa ícones diferentes); para acrescentar:
+   *   IA/lib/bench-ha-icon/tools/mdi-paths.sh --from tools/bench-stubs.js
+   * Conferir o bloco antes de commitar: IA/tools/check-embeds.sh
+   * Paths: Material Design Icons (@mdi/js v7.4.47), Apache-2.0. */
+  // >>> bench-ha-icon v1 — fonte canônica: /Volumes/SSD-T1-01/CLAUDE-SSD/IA/lib/bench-ha-icon/bench-ha-icon.js
+  // Dublê de <ha-icon> que desenha o ícone DE VERDADE (path do MDI em <svg>
+  // ocupando a caixa toda), para o tamanho vir do CSS do card como no HA.
+  // Ícone sem path vira losango VERMELHO: erro tem que gritar, e bolinha
+  // discreta já fez a bancada inteira mentir uma vez.
+  const BENCH_ICON_MISSING = "M11 15.5H12.5V17H11V15.5M12 6.95C14.7 7.06 15.87 9.78 14.28 11.81C13.86 12.31 13.19 12.64 12.85 13.07C12.5 13.5 12.5 14 12.5 14.5H11C11 13.65 11 12.94 11.35 12.44C11.68 11.94 12.35 11.64 12.77 11.31C14 10.18 13.68 8.59 12 8.46C11.18 8.46 10.5 9.13 10.5 9.97H9C9 8.3 10.35 6.95 12 6.95M12 2C11.5 2 11 2.19 10.59 2.59L2.59 10.59C1.8 11.37 1.8 12.63 2.59 13.41L10.59 21.41C11.37 22.2 12.63 22.2 13.41 21.41L21.41 13.41C22.2 12.63 22.2 11.37 21.41 10.59L13.41 2.59C13 2.19 12.5 2 12 2M12 4L20 12L12 20L4 12Z";
+  const defineBenchHaIcon = (paths) => customElements.define("ha-icon", class extends HTMLElement {
+    static get observedAttributes() { return ["icon"]; }
+    _benchPaint() {
+      const name = String(this.getAttribute("icon") || "").replace(/^mdi:/, "");
+      const d = (paths || {})[name];
+      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+      this.shadowRoot.innerHTML =
+        `<style>:host{display:block;line-height:0}svg{width:100%;height:100%;display:block}</style>`
+        + `<svg viewBox="0 0 24 24" aria-hidden="true">`
+        + `<path fill="${d ? "currentColor" : "#e11d48"}" d="${d || BENCH_ICON_MISSING}"></path></svg>`;
+      this.title = d ? "" : `bancada: ícone "${name}" sem path — ver o mapa MDI deste repo`;
+    }
+    attributeChangedCallback() { this._benchPaint(); }
+    connectedCallback() { this._benchPaint(); }
+  });
+  // <<< bench-ha-icon v1
+
   const MDI = {
     "account": "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z",
     "account-heart": "M15,14C12.3,14 7,15.3 7,18V20H23V18C23,15.3 17.7,14 15,14M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12M5,15L4.4,14.5C2.4,12.6 1,11.4 1,9.9C1,8.7 2,7.7 3.2,7.7C3.9,7.7 4.6,8 5,8.5C5.4,8 6.1,7.7 6.8,7.7C8,7.7 9,8.6 9,9.9C9,11.4 7.6,12.6 5.6,14.5L5,15Z",
@@ -51,22 +67,7 @@
     "check": "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z",
     "help-rhombus-outline": "M11 15.5H12.5V17H11V15.5M12 6.95C14.7 7.06 15.87 9.78 14.28 11.81C13.86 12.31 13.19 12.64 12.85 13.07C12.5 13.5 12.5 14 12.5 14.5H11C11 13.65 11 12.94 11.35 12.44C11.68 11.94 12.35 11.64 12.77 11.31C14 10.18 13.68 8.59 12 8.46C11.18 8.46 10.5 9.13 10.5 9.97H9C9 8.3 10.35 6.95 12 6.95M12 2C11.5 2 11 2.19 10.59 2.59L2.59 10.59C1.8 11.37 1.8 12.63 2.59 13.41L10.59 21.41C11.37 22.2 12.63 22.2 13.41 21.41L21.41 13.41C22.2 12.63 22.2 11.37 21.41 10.59L13.41 2.59C13 2.19 12.5 2 12 2M12 4L20 12L12 20L4 12Z",
   };
-  const MISSING = MDI["help-rhombus-outline"];
-  customElements.define("ha-icon", class extends HTMLElement {
-    static get observedAttributes() { return ["icon"]; }
-    _p() {
-      const name = String(this.getAttribute("icon") || "").replace(/^mdi:/, "");
-      const d = MDI[name];
-      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
-      this.shadowRoot.innerHTML =
-        `<style>:host{display:block;line-height:0}svg{width:100%;height:100%;display:block}</style>
-         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="${d ? "currentColor" : "#e11d48"}"
-           d="${d || MISSING}"></path></svg>`;
-      this.title = d ? "" : `bancada: ícone ${name} não está em MDI (bench-stubs.js)`;
-    }
-    attributeChangedCallback() { this._p(); }
-    connectedCallback() { this._p(); }
-  });
+  defineBenchHaIcon(MDI);
 
   const DEMOS = {
     wallet: `<div style="display:grid;grid-template-columns:1fr 1fr;text-align:center;padding:8px 0 20px">
