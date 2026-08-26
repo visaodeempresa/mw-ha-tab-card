@@ -184,6 +184,23 @@
           { label: "SEMANA", icon: "mdi:calendar-week", cards: [{ title: "Semana" }] },
           { label: "AJUSTES", icon: "mdi:cog", cards: [{ title: "Ajustes" }] }] },
     },
+    deitada_270: {
+      title: "270° · só o texto gira (ícone de pé)", width: 320,
+      cfg: { tab_position: "right", tab_display: "both", tab_rotate: true,
+        tab_rotate_angle: "270", tab_rotate_what: "text",
+        paper_color: "violet-2", shell_color: "#4c1d95", panel_min_height: 200,
+        tabs: [{ label: "CORPO", icon: "mdi:human-handsup", cards: [{ demo: "chart" }] },
+          { label: "COMPOSIÇÃO", icon: "mdi:scale-bathroom", cards: [{ title: "Composição" }] },
+          { label: "AJUSTES", icon: "mdi:cog", cards: [{ title: "Ajustes" }] }] },
+    },
+    deitada_icone: {
+      title: "Só o ÍCONE gira · rótulo de pé", width: 320,
+      cfg: { tab_position: "left", tab_display: "both", tab_rotate: true,
+        tab_rotate_what: "icon",
+        paper_color: "green-3", shell_color: "#14532d", panel_min_height: 200,
+        tabs: [{ label: "HOJE", icon: "mdi:calendar-today", cards: [{ demo: "chart" }] },
+          { label: "MÊS", icon: "mdi:calendar-month", cards: [{ title: "Mês" }] }] },
+    },
     plano: {
       title: "Sem relevo · abas centradas", width: 300,
       cfg: { paper_color: "red-4", shell_color: "#7f1d1d", elevation: false, tab_stretch: false,

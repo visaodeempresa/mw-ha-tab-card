@@ -327,7 +327,9 @@ tabs:
 | `tab_size` | px | `0` (auto) | espessura da faixa: auto = 46px na horizontal e, na vertical, do tamanho do conteúdo (entre 46 e 168px / 45% do card) |
 | `tab_font_size` / `tab_icon_size` | px | 11 / 20 | tipografia da aba |
 | `tab_rotate` | `auto`/`true`/`false` | `auto` | **deita** a aba lateral: ícone e rótulo giram juntos. `auto` = deita quando o aparelho está em **retrato** |
-| `tab_rotate_dir` | `auto`/`cw`/`ccw` | `auto` | sentido da leitura; auto = à esquerda sobe, à direita desce |
+| `tab_rotate_angle` | `auto`/`90`/`270` | `auto` | ângulo da aba deitada. auto = **90°** à direita (lê de cima para baixo) e **270°** à esquerda (de baixo para cima) |
+| `tab_rotate_what` | `both`/`text`/`icon` | `both` | o que gira: ícone e texto, só o texto (ícone de pé) ou só o ícone |
+| `tab_rotate_dir` | `auto`/`cw`/`ccw` | `auto` | atalho antigo do ângulo: `cw` = 90°, `ccw` = 270° |
 | `portrait:` / `landscape:` | bloco | — | sobrescreve **qualquer** chave visual só naquela orientação (ver abaixo) |
 | `default_tab` | índice | `0` | aba aberta ao carregar |
 | `remember_tab` | bool | `false` | guarda a última aba **neste navegador** |
@@ -346,6 +348,21 @@ a ser fina — o rótulo cresce para baixo em vez de roubar largura do painel.
 Não é `transform: rotate` (que deixaria a caixa do botão do tamanho de antes e
 o texto vazando): é modo de escrita vertical, então a própria caixa vira alta e
 estreita e a faixa se mede sozinha pelo maior rótulo.
+
+O ícone precisa de tratamento próprio: `ha-icon` é elemento **substituído**, e
+o modo de escrita vertical gira o texto passando por ele em branco. Por isso
+existe `tab_rotate_what` — e por isso, antes dele, o ícone ficava de pé
+enquanto o rótulo deitava.
+
+Aba que mostra **só ícone** nunca deita: não há rótulo para caber, e um ícone
+com lado certo (uma seta) deitado passa a apontar para o lugar errado.
+
+```yaml
+tab_position: right
+tab_rotate: true
+tab_rotate_angle: 270      # lê de baixo para cima
+tab_rotate_what: text      # o rótulo deita, o ícone fica de pé
+```
 
 **2. Configurar por orientação.** Os blocos `portrait:` e `landscape:`
 sobrescrevem qualquer chave visual — inclusive `tab_position`. A troca é ao

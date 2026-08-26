@@ -29,7 +29,13 @@
     // naquela orientação — inclusive `tab_position`.
     tab_rotate: "auto",         // auto | true | false  (auto = deita a faixa
                                 // lateral quando o aparelho está em retrato)
-    tab_rotate_dir: "auto",     // auto | cw | ccw
+    tab_rotate_angle: "auto",   // auto | 90 | 270   (auto = 90 à direita, 270 à
+                                // esquerda — é o sentido que o olho espera)
+    tab_rotate_what: "both",    // both | text | icon — o que gira. O modo de
+                                // escrita vertical gira só o TEXTO: `ha-icon`
+                                // é elemento substituído e não acompanha, por
+                                // isso o ícone leva um transform próprio.
+    tab_rotate_dir: "auto",     // LEGADO: cw = 90, ccw = 270
     default_tab: 0,
     remember_tab: false,        // guarda a aba escolhida no navegador
     keep_alive: true,           // aba já aberta continua montada ao trocar
@@ -315,12 +321,27 @@
       return this._orientAtual === "portrait";   // "auto"
     }
 
-    /** Sentido da leitura: à esquerda sobe, à direita desce (é o que o olho
-     *  espera de aba lateral, e o que o Material e o Chrome fazem). */
-    _sentido() {
+    /** Ângulo da aba deitada: 90 (leitura de cima para baixo) ou 270 (de
+     *  baixo para cima). `auto` = 90 à direita e 270 à esquerda, que é o que o
+     *  olho espera de aba lateral. `tab_rotate_dir` continua valendo como
+     *  atalho antigo (cw = 90, ccw = 270). */
+    _angulo() {
+      const a = String(this._config.tab_rotate_angle ?? "auto");
+      if (a === "90" || a === "270") return +a;
+      if (a === "-90") return 270;
       const d = this._config.tab_rotate_dir;
-      if (d === "cw" || d === "ccw") return d;
-      return this._pos() === "left" ? "ccw" : "cw";
+      if (d === "cw") return 90;
+      if (d === "ccw") return 270;
+      return this._pos() === "left" ? 270 : 90;
+    }
+
+    /** Compatibilidade: o CSS ainda pensa em cw/ccw. */
+    _sentido() { return this._angulo() === 270 ? "ccw" : "cw"; }
+
+    /** O que gira: `both` (padrão), só o `text` ou só o `icon`. */
+    _oQueGira() {
+      const v = String(this._config.tab_rotate_what || "both").toLowerCase();
+      return ["both", "text", "icon"].includes(v) ? v : "both";
     }
 
     /* ---------------- estrutura (montada uma vez) ---------------- */
@@ -458,6 +479,15 @@
         .tab.rot.ccw{transform:rotate(180deg);}
         .tab.rot .lbl{max-width:none;max-height:100%;}
         .tab.rot ha-icon{--mdc-icon-size:var(--tis);}
+        /* O ha-icon é elemento SUBSTITUÍDO: writing-mode gira o texto e passa
+           por ele em branco. Quem gira o ícone é este transform. */
+        .tab.rot.gira-icone ha-icon{transform:rotate(90deg);}
+        /* só o ÍCONE gira: o botão volta ao fluxo normal e o rótulo fica de pé */
+        .tab.rot.so-icone{writing-mode:horizontal-tb;flex-direction:column;
+          padding:${PAD_LEN} ${PAD_CROSS};}
+        .tab.rot.so-icone.ccw{transform:none;}
+        .tab.rot.so-icone.ccw ha-icon{transform:rotate(270deg);}
+        .tab.rot.so-icone .lbl{max-width:100%;max-height:none;}
         .tab ha-icon{--mdc-icon-size:var(--tis);width:var(--tis);height:var(--tis);flex:none;line-height:0;}
         .tab:focus-visible{outline:2px solid var(--mw-tab-on);outline-offset:-4px;}
         .tab.active{color:var(--mw-tab-on);background:var(--mw-paper);${tabRadius}${seam}}
@@ -574,6 +604,7 @@
       const c = this._config;
       const stretch = this._stretch;
       const rot = this._deitada();
+      const gira = this._oQueGira();
       const gDisp = DISPLAYS.includes(c.tab_display) ? c.tab_display : "both";
       const html = c.tabs.map((t, i) => {
         const disp = DISPLAYS.includes(t.display) ? t.display : gDisp;
@@ -584,7 +615,14 @@
         const showText = label && (disp !== "icon" || !showIcon);
         const on = i === this._active;
         const cls = ["tab"];
-        if (rot) { cls.push("rot"); cls.push(this._sentido()); }
+        // Deitar aba que só mostra ÍCONE não economiza nada — não há rótulo
+        // para caber — e ainda deita um ícone que tem lado certo (uma seta
+        // deitada aponta para o lugar errado). Só deita quando há texto.
+        if (rot && showText) {
+          cls.push("rot", this._sentido());
+          if (gira !== "text") cls.push("gira-icone");
+          if (gira === "icon") cls.push("so-icone");
+        }
         if (on) cls.push("active");
         if (stretch) cls.push("stretch");
         if (on && this._flush.s) cls.push("flush-s");
@@ -716,7 +754,8 @@
     tab_align: "Onde a fila de abas encosta",
     tab_size: "Espessura da faixa de abas (0 = automático: na lateral, do tamanho do conteúdo)",
     tab_rotate: "Deitar a aba lateral (ícone e texto girados juntos)",
-    tab_rotate_dir: "Sentido da leitura da aba deitada",
+    tab_rotate_angle: "Ângulo da aba deitada",
+    tab_rotate_what: "O que gira na aba deitada",
     tab_font_size: "Tamanho do texto da aba",
     tab_icon_size: "Tamanho do ícone da aba",
     default_tab: "Aba inicial",
@@ -1110,10 +1149,14 @@
                 { value: "auto", label: "Automático (deita em retrato)" },
                 { value: "true", label: "Sempre deitada" },
                 { value: "false", label: "Nunca" }] } } },
-              { name: "tab_rotate_dir", selector: { select: { mode: "dropdown", options: [
-                { value: "auto", label: "Automático (esquerda sobe, direita desce)" },
-                { value: "cw", label: "Horário" },
-                { value: "ccw", label: "Anti-horário" }] } } },
+              { name: "tab_rotate_angle", selector: { select: { mode: "dropdown", options: [
+                { value: "auto", label: "Automático (90° à direita, 270° à esquerda)" },
+                { value: "90", label: "90° — leitura de cima para baixo" },
+                { value: "270", label: "270° — leitura de baixo para cima" }] } } },
+              { name: "tab_rotate_what", selector: { select: { mode: "dropdown", options: [
+                { value: "both", label: "Ícone e texto" },
+                { value: "text", label: "Só o texto (ícone de pé)" },
+                { value: "icon", label: "Só o ícone (texto de pé)" }] } } },
             ]),
           ],
         },
