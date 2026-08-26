@@ -326,12 +326,49 @@ tabs:
 | `tab_align` | `start`/`center`/`end` | auto | onde a fila encosta quando não estica; auto = centro na horizontal, topo na vertical |
 | `tab_size` | px | `0` (auto) | espessura da faixa: auto = 46px na horizontal e, na vertical, do tamanho do conteúdo (entre 46 e 168px / 45% do card) |
 | `tab_font_size` / `tab_icon_size` | px | 11 / 20 | tipografia da aba |
+| `tab_rotate` | `auto`/`true`/`false` | `auto` | **deita** a aba lateral: ícone e rótulo giram juntos. `auto` = deita quando o aparelho está em **retrato** |
+| `tab_rotate_dir` | `auto`/`cw`/`ccw` | `auto` | sentido da leitura; auto = à esquerda sobe, à direita desce |
+| `portrait:` / `landscape:` | bloco | — | sobrescreve **qualquer** chave visual só naquela orientação (ver abaixo) |
 | `default_tab` | índice | `0` | aba aberta ao carregar |
 | `remember_tab` | bool | `false` | guarda a última aba **neste navegador** |
 | `keep_alive` | bool | `true` | aba já aberta continua montada ao trocar |
 | `preload` | bool | `false` | monta todas as abas de uma vez |
 
 Aba sem ícone no modo `icon` **não vira caixa vazia**: cai para o texto.
+
+### Retrato e paisagem
+
+A mesma faixa lateral que fica ótima em paisagem vira `CO…` em retrato: o card
+perde metade da largura e o rótulo não cabe mais. Duas ferramentas para isso.
+
+**1. Deitar a aba.** `tab_rotate` gira ícone e rótulo *juntos*, e a faixa passa
+a ser fina — o rótulo cresce para baixo em vez de roubar largura do painel.
+Não é `transform: rotate` (que deixaria a caixa do botão do tamanho de antes e
+o texto vazando): é modo de escrita vertical, então a própria caixa vira alta e
+estreita e a faixa se mede sozinha pelo maior rótulo.
+
+**2. Configurar por orientação.** Os blocos `portrait:` e `landscape:`
+sobrescrevem qualquer chave visual — inclusive `tab_position`. A troca é ao
+vivo: girar o aparelho repinta o card, sem recarregar a tela.
+
+```yaml
+type: custom:mw-tab-card
+tab_position: right          # em paisagem, faixa à direita
+tab_display: both
+tab_rotate: auto             # em retrato, deita sozinha
+landscape:
+  tab_size: 96               # em paisagem sobra largura: aba mais folgada
+portrait:
+  tab_position: bottom       # ou, se preferir, manda a faixa para baixo
+  tab_stretch: true
+tabs:
+  - label: CORPO
+    icon: mdi:human-handsup
+    cards: [...]
+```
+
+`tabs` **não** pode ser sobrescrito por orientação — mudar o conteúdo ao girar
+o aparelho remontaria todos os cards de dentro.
 
 ### Aparência
 

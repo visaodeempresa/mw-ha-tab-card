@@ -164,6 +164,26 @@
           { label: "Quarto", icon: "mdi:bed", cards: [{ demo: "awards" }] },
           { label: "Casa", icon: "mdi:home", cards: [{ title: "Casa" }] }] },
     },
+    deitada: {
+      title: "Abas deitadas (retrato) · ícone ao lado do rótulo", width: 320,
+      // tab_rotate: true força o que o `auto` faz sozinho quando o APARELHO
+      // está em retrato — é o caso do dono: faixa à direita ótima em paisagem
+      // que virava «CO…» ao girar o telefone.
+      cfg: { tab_position: "right", tab_display: "both", tab_rotate: true,
+        paper_color: "paper", shell_color: "#7f1d1d", panel_min_height: 246,
+        tabs: [{ label: "CORPO", icon: "mdi:human-handsup", cards: [{ demo: "chart" }] },
+          { label: "VITAIS", icon: "mdi:heart-pulse", cards: [{ title: "Vitais" }] },
+          { label: "COMPOSIÇÃO", icon: "mdi:scale-bathroom", cards: [{ title: "Composição" }] },
+          { label: "COLETAS", icon: "mdi:history", cards: [{ title: "Coletas" }] }] },
+    },
+    deitada_esq: {
+      title: "Deitadas à esquerda · leitura de baixo para cima", width: 320,
+      cfg: { tab_position: "left", tab_display: "both", tab_rotate: true,
+        paper_color: "blue-3", shell_color: "#123f6b", panel_min_height: 246,
+        tabs: [{ label: "HOJE", icon: "mdi:calendar-today", cards: [{ demo: "chart" }] },
+          { label: "SEMANA", icon: "mdi:calendar-week", cards: [{ title: "Semana" }] },
+          { label: "AJUSTES", icon: "mdi:cog", cards: [{ title: "Ajustes" }] }] },
+    },
     plano: {
       title: "Sem relevo · abas centradas", width: 300,
       cfg: { paper_color: "red-4", shell_color: "#7f1d1d", elevation: false, tab_stretch: false,

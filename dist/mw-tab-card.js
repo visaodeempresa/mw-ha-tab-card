@@ -22,6 +22,14 @@
                                 // do tamanho do conteúdo (entre 46 e 168px)
     tab_font_size: 11,
     tab_icon_size: 20,
+    // ORIENTAÇÃO. Faixa lateral que fica ótima em paisagem some em retrato:
+    // a mesma aba que tinha 120px de largura passa a ter 60 e o rótulo vira
+    // «CO…». `tab_rotate` deita a aba (ícone e texto juntos, girados), e os
+    // blocos `portrait:` / `landscape:` sobrescrevem QUALQUER chave visual só
+    // naquela orientação — inclusive `tab_position`.
+    tab_rotate: "auto",         // auto | true | false  (auto = deita a faixa
+                                // lateral quando o aparelho está em retrato)
+    tab_rotate_dir: "auto",     // auto | cw | ccw
     default_tab: 0,
     remember_tab: false,        // guarda a aba escolhida no navegador
     keep_alive: true,           // aba já aberta continua montada ao trocar
@@ -144,7 +152,58 @@
 
   /* ------------------------------------------------------------------ CARD */
 
+  const RETRATO = "(orientation: portrait)";
+
   class MwTabCard extends HTMLElement {
+    /** "portrait" | "landscape" — do APARELHO, que é o que o dono percebe. */
+    _orient() {
+      try {
+        return window.matchMedia(RETRATO).matches ? "portrait" : "landscape";
+      } catch (_) {
+        return window.innerHeight > window.innerWidth ? "portrait" : "landscape";
+      }
+    }
+
+    /** base + o bloco da orientação atual. `tabs` nunca é sobrescrito. */
+    _aplicarOrientacao() {
+      const base = this._base || {};
+      const extra = { ...(base[this._orientAtual] || {}) };
+      delete extra.tabs;
+      delete extra.portrait;
+      delete extra.landscape;
+      const antes = this._config;
+      this._config = { ...base, ...extra };
+      this._config.tabs = base.tabs;
+      if (!antes || antes.tab_position !== this._config.tab_position
+          || antes.tab_rotate !== this._config.tab_rotate) this._styled = false;
+    }
+
+    connectedCallback() {
+      if (this._mqOrient) return;
+      try {
+        this._mqOrient = window.matchMedia(RETRATO);
+        this._onOrient = () => {
+          const novo = this._orient();
+          if (novo === this._orientAtual) return;
+          this._orientAtual = novo;
+          if (!this._base) return;
+          this._aplicarOrientacao();
+          this._styled = false;
+          this._render();
+        };
+        // Safari antigo só tem addListener
+        if (this._mqOrient.addEventListener) this._mqOrient.addEventListener("change", this._onOrient);
+        else this._mqOrient.addListener(this._onOrient);
+      } catch (_) { /* sem matchMedia: fica na orientação do primeiro render */ }
+    }
+
+    disconnectedCallback() {
+      if (!this._mqOrient) return;
+      if (this._mqOrient.removeEventListener) this._mqOrient.removeEventListener("change", this._onOrient);
+      else this._mqOrient.removeListener(this._onOrient);
+      this._mqOrient = null;
+    }
+
     setConfig(config) {
       if (!config || !Array.isArray(config.tabs) || config.tabs.length === 0) {
         throw new Error("mw-tab-card: defina ao menos uma aba em 'tabs'");
@@ -155,7 +214,9 @@
         cards: Array.isArray(t.cards) ? t.cards : [],
       }));
       const before = this._config;
-      this._config = cfg;
+      this._base = cfg;
+      this._orientAtual = this._orient();
+      this._aplicarOrientacao();
 
       // troca de config = os filhos podem ter mudado; joga fora e remonta.
       // Comparar por JSON é barato perto de recriar cards à toa a cada
@@ -165,7 +226,7 @@
         this._cardsSig = sig;
         this._panes = null;
       }
-      if (!before || before.tab_position !== cfg.tab_position) this._styled = false;
+      if (!before || before.tab_position !== this._config.tab_position) this._styled = false;
 
       this._active = this._pickInitialTab();
       this._render();
@@ -243,6 +304,24 @@
 
     _pos() { return POSITIONS.includes(this._config.tab_position) ? this._config.tab_position : "bottom"; }
     _horizontal() { const p = this._pos(); return p === "top" || p === "bottom"; }
+
+    /** Deitar a aba só faz sentido em faixa VERTICAL — na horizontal ela já
+     *  tem todo o comprimento do card para o rótulo. */
+    _deitada() {
+      if (this._horizontal()) return false;
+      const r = this._config.tab_rotate;
+      if (r === true || r === "true" || r === "sempre") return true;
+      if (r === false || r === "false" || r === "nunca") return false;
+      return this._orientAtual === "portrait";   // "auto"
+    }
+
+    /** Sentido da leitura: à esquerda sobe, à direita desce (é o que o olho
+     *  espera de aba lateral, e o que o Material e o Chrome fazem). */
+    _sentido() {
+      const d = this._config.tab_rotate_dir;
+      if (d === "cw" || d === "ccw") return d;
+      return this._pos() === "left" ? "ccw" : "cw";
+    }
 
     /* ---------------- estrutura (montada uma vez) ---------------- */
 
@@ -370,6 +449,15 @@
           transition:color .22s ease;}
         .tab.stretch{flex:1 1 0;}
         .tab .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+        /* ABA DEITADA: modo de escrita vertical em vez de transform rotate.
+           Com transform o botao continuaria com a caixa de antes e o rotulo
+           longo vazaria; com writing-mode a propria caixa vira alta e estreita,
+           entao a faixa se ajusta sozinha ao maior rotulo. */
+        .tab.rot{writing-mode:vertical-rl;flex-direction:row;
+          padding:${PAD_LEN} ${PAD_CROSS};text-align:center;}
+        .tab.rot.ccw{transform:rotate(180deg);}
+        .tab.rot .lbl{max-width:none;max-height:100%;}
+        .tab.rot ha-icon{--mdc-icon-size:var(--tis);}
         .tab ha-icon{--mdc-icon-size:var(--tis);width:var(--tis);height:var(--tis);flex:none;line-height:0;}
         .tab:focus-visible{outline:2px solid var(--mw-tab-on);outline-offset:-4px;}
         .tab.active{color:var(--mw-tab-on);background:var(--mw-paper);${tabRadius}${seam}}
@@ -447,13 +535,19 @@
       // de ícones (aba de 104×40: mais larga que comprida, e o painel perdia
       // um terço do card). tab_size explícito continua mandando.
       const tsz = num(c.tab_size, 0);
-      const sideAuto = !horiz && !tsz;
-      set("--tsize", tsz ? `${tsz}px` : (horiz ? `${SIDE_MIN}px` : "max-content"));
+      const deitada = this._deitada();
+      // faixa deitada é sempre fina: o rótulo cresce para BAIXO, não para o
+      // lado, então o painel não perde largura como perdia em retrato
+      const sideAuto = !horiz && !tsz && !deitada;
+      set("--tsize", tsz ? `${tsz}px`
+        : (horiz || deitada ? `${SIDE_MIN}px` : "max-content"));
       set("--tmin", sideAuto ? `${SIDE_MIN}px` : "0px");
       set("--tmax", sideAuto ? `min(${SIDE_MAX}px, 45%)` : "none");
-      // comprimento mínimo da aba lateral: sem isso o arredondamento --tr das
-      // duas quinas de fora se encontra no meio e a aba vira uma pastilha
-      set("--tminlen", `${Math.max(2 * pr + 6, 2 * nr + 14)}px`);
+      // sem isso o arredondamento --tr das duas quinas de fora se encontra no
+      // meio e a aba vira uma pastilha.
+      // Comprimento mínimo da aba lateral. Deitada, quem manda é o rótulo
+      // girado — um piso fixo empurraria as abas para fora do card.
+      set("--tminlen", deitada ? "0px" : `${Math.max(2 * pr + 6, 2 * nr + 14)}px`);
       set("--tfs", `${num(c.tab_font_size, 11)}px`);
       set("--tis", `${num(c.tab_icon_size, 20)}px`);
       set("--hdr-inset", `${num(c.header_inset, 26)}px`);
@@ -479,6 +573,7 @@
     _paintTabs() {
       const c = this._config;
       const stretch = this._stretch;
+      const rot = this._deitada();
       const gDisp = DISPLAYS.includes(c.tab_display) ? c.tab_display : "both";
       const html = c.tabs.map((t, i) => {
         const disp = DISPLAYS.includes(t.display) ? t.display : gDisp;
@@ -489,6 +584,7 @@
         const showText = label && (disp !== "icon" || !showIcon);
         const on = i === this._active;
         const cls = ["tab"];
+        if (rot) { cls.push("rot"); cls.push(this._sentido()); }
         if (on) cls.push("active");
         if (stretch) cls.push("stretch");
         if (on && this._flush.s) cls.push("flush-s");
@@ -619,6 +715,8 @@
     tab_stretch: "Abas dividem a faixa em partes iguais",
     tab_align: "Onde a fila de abas encosta",
     tab_size: "Espessura da faixa de abas (0 = automático: na lateral, do tamanho do conteúdo)",
+    tab_rotate: "Deitar a aba lateral (ícone e texto girados juntos)",
+    tab_rotate_dir: "Sentido da leitura da aba deitada",
     tab_font_size: "Tamanho do texto da aba",
     tab_icon_size: "Tamanho do ícone da aba",
     default_tab: "Aba inicial",
@@ -1007,6 +1105,16 @@
           name: "", type: "grid", schema: [
             { name: "tab_position", selector: { select: { mode: "dropdown", options: POS_OPTIONS } } },
             { name: "tab_display", selector: { select: { mode: "dropdown", options: DISP_OPTIONS } } },
+            ...(horiz ? [] : [
+              { name: "tab_rotate", selector: { select: { mode: "dropdown", options: [
+                { value: "auto", label: "Automático (deita em retrato)" },
+                { value: "true", label: "Sempre deitada" },
+                { value: "false", label: "Nunca" }] } } },
+              { name: "tab_rotate_dir", selector: { select: { mode: "dropdown", options: [
+                { value: "auto", label: "Automático (esquerda sobe, direita desce)" },
+                { value: "cw", label: "Horário" },
+                { value: "ccw", label: "Anti-horário" }] } } },
+            ]),
           ],
         },
         ...(horiz ? [{ name: "tab_stretch", selector: { boolean: {} } }] : []),
