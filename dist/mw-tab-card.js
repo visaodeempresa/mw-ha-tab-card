@@ -470,24 +470,26 @@
           transition:color .22s ease;}
         .tab.stretch{flex:1 1 0;}
         .tab .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-        /* ABA DEITADA: modo de escrita vertical em vez de transform rotate.
-           Com transform o botao continuaria com a caixa de antes e o rotulo
-           longo vazaria; com writing-mode a propria caixa vira alta e estreita,
-           entao a faixa se ajusta sozinha ao maior rotulo. */
-        .tab.rot{writing-mode:vertical-rl;flex-direction:row;
-          padding:${PAD_LEN} ${PAD_CROSS};text-align:center;}
-        .tab.rot.ccw{transform:rotate(180deg);}
-        .tab.rot .lbl{max-width:none;max-height:100%;}
-        .tab.rot ha-icon{--mdc-icon-size:var(--tis);}
+        /* ABA DEITADA — gira o CONTEUDO, nunca o botao.
+           Modo de escrita vertical em vez de transform rotate: com transform a
+           caixa continuaria do tamanho de antes e o rotulo longo vazaria.
+           E quem deita e a caixa .in, que so tem icone e rotulo dentro — o
+           BOTAO carrega a casca, o papel e o recorte concavo que funde a aba
+           ativa ao painel, e girar isso junto desencaixava a aba do painel. */
+        .tab.rot{flex-direction:row;padding:${PAD_LEN} ${PAD_CROSS};}
+        .tab.rot .in{display:inline-flex;align-items:center;justify-content:center;
+          gap:7px;writing-mode:vertical-rl;text-align:center;}
+        .tab.rot.ccw .in{transform:rotate(180deg);}
+        .tab.rot .in .lbl{max-width:none;max-height:100%;}
+        .tab.rot .in ha-icon{--mdc-icon-size:var(--tis);}
         /* O ha-icon é elemento SUBSTITUÍDO: writing-mode gira o texto e passa
            por ele em branco. Quem gira o ícone é este transform. */
-        .tab.rot.gira-icone ha-icon{transform:rotate(90deg);}
-        /* só o ÍCONE gira: o botão volta ao fluxo normal e o rótulo fica de pé */
-        .tab.rot.so-icone{writing-mode:horizontal-tb;flex-direction:column;
-          padding:${PAD_LEN} ${PAD_CROSS};}
-        .tab.rot.so-icone.ccw{transform:none;}
-        .tab.rot.so-icone.ccw ha-icon{transform:rotate(270deg);}
-        .tab.rot.so-icone .lbl{max-width:100%;max-height:none;}
+        .tab.rot.gira-icone .in ha-icon{transform:rotate(90deg);}
+        /* só o ÍCONE gira: a caixa volta ao fluxo normal e o rótulo fica de pé */
+        .tab.rot.so-icone .in{writing-mode:horizontal-tb;flex-direction:column;
+          transform:none;}
+        .tab.rot.so-icone.ccw .in ha-icon{transform:rotate(270deg);}
+        .tab.rot.so-icone .in .lbl{max-width:100%;max-height:none;}
         .tab ha-icon{--mdc-icon-size:var(--tis);width:var(--tis);height:var(--tis);flex:none;line-height:0;}
         .tab:focus-visible{outline:2px solid var(--mw-tab-on);outline-offset:-4px;}
         .tab.active{color:var(--mw-tab-on);background:var(--mw-paper);${tabRadius}${seam}}
@@ -627,9 +629,14 @@
         if (stretch) cls.push("stretch");
         if (on && this._flush.s) cls.push("flush-s");
         if (on && this._flush.e) cls.push("flush-e");
+        // O conteúdo sai daqui montado: quando a aba deita, ícone e rótulo vão
+        // dentro de uma caixa própria — é ELA que gira, não o botão.
+        const miolo = (showIcon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : "")
+          + (showText ? `<span class="lbl">${esc(label)}</span>` : "");
+        const conteudo = cls.includes("rot") ? `<span class="in">${miolo}</span>` : miolo;
         return `<button class="${cls.join(" ")}" role="tab" data-i="${i}"
           aria-selected="${on}" tabindex="${on ? 0 : -1}"
-          title="${esc(label)}">${showIcon ? `<ha-icon icon="${esc(icon)}"></ha-icon>` : ""}${showText ? `<span class="lbl">${esc(label)}</span>` : ""}</button>`;
+          title="${esc(label)}">${conteudo}</button>`;
       }).join("");
       this._els.tabs.innerHTML = html;
       this._els.tabs.querySelectorAll(".tab").forEach((el) =>
