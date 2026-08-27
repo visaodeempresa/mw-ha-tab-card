@@ -349,6 +349,11 @@ Não é `transform: rotate` (que deixaria a caixa do botão do tamanho de antes 
 o texto vazando): é modo de escrita vertical, então a própria caixa vira alta e
 estreita e a faixa se mede sozinha pelo maior rótulo.
 
+**O que gira é o conteúdo, não o botão.** O botão carrega a casca, o papel e o
+recorte côncavo que funde a aba ativa ao painel — girar o botão gira tudo isso
+junto e a aba sai desencaixada. Ícone e rótulo vivem numa caixa própria
+(`.in`), e é ela que deita.
+
 O ícone precisa de tratamento próprio: `ha-icon` é elemento **substituído**, e
 o modo de escrita vertical gira o texto passando por ele em branco. Por isso
 existe `tab_rotate_what` — e por isso, antes dele, o ícone ficava de pé
