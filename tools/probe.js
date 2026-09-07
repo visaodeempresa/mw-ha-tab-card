@@ -299,6 +299,16 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   ok(panes.get(0).children[0].hass === hass2, "hass não chegou no card de dentro");
   el.editMode = true;
   ok(panes.get(0).children[0].editMode === true, "editMode não chegou no card de dentro");
+  // `preview` é o que o <hui-card> liga só no card em edição. Sem ele, o
+  // picture-elements de dentro ignora o clique na imagem que posiciona o
+  // elemento (hui-picture-elements-card: `if (!this.preview) return`).
+  el.preview = true;
+  ok(panes.get(0).children[0].preview === true, "preview não chegou no card de dentro");
+  const elP = mk({ ...BASE });
+  elP.preview = true;
+  await wait(); await wait();
+  ok(elP._panes.get(0).children[0].preview === true,
+    "preview ligado antes da montagem deveria chegar no card criado depois");
 
   el._select(1, true);
   await wait(); await wait();
@@ -397,6 +407,40 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   ok(last.tabs[0].cards.length === 1, "renomear a aba não pode apagar os cards dela");
   ok(last.tabs[0].label === "Novo nome" && !("display" in last.tabs[0]),
     "renomear a aba deveria gravar o nome e não gravar display vazio");
+
+  /* --------- o eco do HA não pode recriar o editor do card de dentro ---------
+     O HA devolve a config para o editor logo depois de nós a emitirmos
+     (hui-element-editor: set value → _updateConfigElement → setConfig).
+     Se _render() rodar nesse eco, o <hui-card-element-editor> aberto é
+     recriado e o estado interno DELE se perde — era o que fechava o painel
+     "editar item" do picture-elements a cada tecla. */
+  const ed2 = new reg["mw-tab-card-editor"]();
+  ed2.hass = { states: {} };
+  let eco = null;
+  ed2.addEventListener("config-changed", (ev) => { eco = ev.detail.config; });
+  ed2.setConfig({ tabs: [{ label: "a", cards: [{ type: "picture-elements", image: "/x.png", elements: [] }] }] });
+  ed2._tab = 0;
+  ed2._editing = { j: 0 };
+  ed2._cardEditEl.innerHTML = "SENTINELA";
+  ed2._writeCard(0, { type: "picture-elements", image: "/x.png", elements: [{ type: "state-icon", entity: "light.a" }] });
+  ok(ed2._cardEditEl.innerHTML === "SENTINELA",
+    "_writeCard não pode recriar o editor aberto");
+  ed2.setConfig(eco);                       // <- o eco, como o HA devolve
+  ok(ed2._cardEditEl.innerHTML === "SENTINELA",
+    "o eco da própria config não pode recriar o editor do card de dentro");
+  ok(ed2._config.tabs[0].cards[0].elements.length === 1,
+    "o eco tem que atualizar a config guardada mesmo sem re-renderizar");
+  /* eco reconhecido também quando o HA devolve uma cópia, não a referência */
+  ed2._editing = { j: 0 };
+  ed2._cardEditEl.innerHTML = "SENTINELA";
+  ed2._writeCard(0, { type: "picture-elements", image: "/x.png", elements: [{ type: "state-icon", entity: "light.b" }] });
+  ed2.setConfig(JSON.parse(JSON.stringify(eco)));
+  ok(ed2._cardEditEl.innerHTML === "SENTINELA",
+    "cópia da própria config também é eco — não pode recriar o editor");
+  /* mudança que NÃO é nossa (YAML do dono, outra sessão) tem que redesenhar */
+  ed2.setConfig({ tabs: [{ label: "outra", cards: [] }] });
+  ok(ed2._cardEditEl.innerHTML !== "SENTINELA",
+    "config vinda de fora deveria redesenhar o editor");
 
   /* --------- a bancada tem que desenhar ícone, não bolinha ---------
      O dublê antigo escrevia um caractere de texto e caía num "●" para todo

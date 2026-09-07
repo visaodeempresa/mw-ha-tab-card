@@ -70,6 +70,16 @@
 
   const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
 
+  // igualdade rasa-o-bastante para reconhecer o eco de uma config que voltou
+  // do HA. Symbol não entra em JSON — e é exatamente o que queremos: o
+  // picture-elements pendura o callback de clique num Symbol, e ele não pode
+  // contar como "mudou".
+  const sameJson = (a, b) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; }
+  };
+
   // >>> paper-palette v1 — fonte canônica: /Volumes/SSD-T1-01/CLAUDE-SSD/IA/lib/paper-palette/paper-palette.js
   // 49 papéis encardidos: 7 matizes do arco-íris × 7 tons (1 = quase branco,
   // 7 = mais encardido). Saturação baixa de propósito — papel descansa a vista.
@@ -209,6 +219,20 @@
       }
     }
     get editMode() { return this._editMode; }
+
+    // `preview` é o que o <hui-card> do HA liga no card que está sendo editado
+    // (e só nele). Sem repassar, o card de dentro nunca sabe que está na
+    // pré-visualização do diálogo — e recursos que só existem ali morrem: o
+    // clique na imagem do picture-elements para posicionar o elemento, por
+    // exemplo, é ignorado quando `preview` é falso.
+    set preview(v) {
+      this._preview = v;
+      if (!this._panes) return;
+      for (const pane of this._panes.values()) {
+        for (const el of pane.children) el.preview = v;
+      }
+    }
+    get preview() { return this._preview; }
 
     static getConfigElement() { return document.createElement("mw-tab-card-editor"); }
 
@@ -595,6 +619,7 @@
       }
       if (this._hass) el.hass = this._hass;
       if (this._editMode !== undefined) el.editMode = this._editMode;
+      if (this._preview !== undefined) el.preview = this._preview;
       // ll-rebuild: o card de dentro pede para ser recriado (é o contrato que
       // as pilhas do HA respeitam). Sem isto, um card que troca de tipo em
       // tempo de execução fica congelado no que era antes.
@@ -689,8 +714,17 @@
 
   class MwTabCardEditor extends HTMLElement {
     setConfig(config) {
+      // ARMADILHA: o HA devolve a config para cá logo depois de nós a
+      // emitirmos (hui-element-editor: set value → _updateConfigElement →
+      // setConfig). É o eco da nossa própria mudança, e re-renderizar nele
+      // destrói o <hui-card-element-editor> aberto — junto com o estado
+      // INTERNO do editor do card de dentro. Era o que fechava o painel
+      // "editar item" do picture-elements a cada alteração.
+      const echo = config === this._echo || sameJson(config, this._echo);
+      this._echo = null;
       this._config = { ...config, tabs: (config.tabs || []).map((t) => ({ ...t })) };
       if (this._tab == null || this._tab >= this._config.tabs.length) this._tab = 0;
+      if (echo && this._root) return;
       this._render();
     }
     set hass(hass) {
@@ -717,6 +751,8 @@
 
     _emit(config) {
       this._config = config;
+      // marca o que saiu daqui para reconhecer o eco em setConfig
+      this._echo = config;
       this.dispatchEvent(new CustomEvent("config-changed",
         { bubbles: true, composed: true, detail: { config } }));
     }
@@ -926,9 +962,26 @@
     }
 
     async _renderCardEditor() {
+      const alvo = this._editing
+        ? { j: this._editing.j, adding: !!this._editing.adding }
+        : null;
+      // o editor do card de dentro guarda estado que só existe nele (o painel
+      // de item do picture-elements é o caso clássico). Se ele já está aberto
+      // no mesmo card, atualizar é o certo — recriar é perder o que o dono
+      // estava editando.
+      if (alvo && this._cardEditor && this._aberto
+          && this._aberto.j === alvo.j && this._aberto.adding === alvo.adding) {
+        this._cardEditor.hass = this._hass;
+        const cfg = ((this._config.tabs[this._tab] || {}).cards || [])[alvo.j];
+        // o próprio editor filho é a origem da maioria das mudanças: aí o
+        // objeto é o dele e o set value dele sai pela porta do deepEqual
+        if (cfg) this._cardEditor.value = cfg;
+        return;
+      }
       this._cardEditEl.innerHTML = "";
       this._cardEditor = null;
       this._picker = null;
+      this._aberto = null;
       if (!this._editing) return;
       const { j, adding } = this._editing;
       const box = document.createElement("div");
@@ -970,6 +1023,7 @@
           if (ev.detail && ev.detail.config) this._writeCard(j, ev.detail.config);
         });
         this._cardEditor = ed;
+        this._aberto = { j, adding: !!adding };
         host.appendChild(ed);
         if (adding) { this._writeCard(j, current); this._editing = { j }; this._renderCardList(); }
         return;
@@ -1116,5 +1170,5 @@
     documentationURL: "https://github.com/visaodeempresa/mw-ha-tab-card",
   });
 
-  console.info("%c MW-TAB-CARD %c 0.3.0 ", "background:#1a1a1a;color:#fdfaf3;font-weight:700;", "background:#e8e3d8;color:#1a1a1a;font-weight:700;");
+  console.info("%c MW-TAB-CARD %c 0.3.1 ", "background:#1a1a1a;color:#fdfaf3;font-weight:700;", "background:#e8e3d8;color:#1a1a1a;font-weight:700;");
 })();
