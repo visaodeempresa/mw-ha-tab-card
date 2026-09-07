@@ -27,6 +27,14 @@ outros cards MW:
    o card de dentro, não nós.
 3. **`ll-rebuild`** — o filho pede para ser recriado. Sem escutar esse
    evento, um card que troca de tipo em tempo de execução congela.
+4. **`hass`, `editMode` e `preview` descem para todo filho.** `preview` é o
+   que o `<hui-card>` do HA liga **só** no card em edição; sem repassar, o
+   picture-elements de dentro ignora o clique na imagem que posiciona o
+   elemento.
+5. **O editor também hospeda editor de terceiro.** O `setConfig` do editor
+   recebe de volta a config que ele mesmo acabou de emitir (é o eco do
+   `hui-element-editor`). Re-renderizar nesse eco recria o
+   `hui-card-element-editor` aberto e apaga o estado interno dele.
 
 **A fusão aba↔painel** é um quadrado de `--nr` px colado na aba ativa,
 pintado de papel sólido e recortado por
@@ -68,6 +76,9 @@ as outras na bancada.
 | Texto do card de dentro sumindo no tema escuro | filho herdou `--primary-text-color` claro | o painel força `--primary-text-color` (`content_text_color`) |
 | Editor de card de dentro não abre | HA não carregou `hui-card-element-editor` | `loadHuiEditors()` instancia o editor da pilha vertical para puxá-lo; se falhar, cai no JSON — **é esperado**, não é bug |
 | Perde o foco ao digitar no editor | recriar o `ha-form` ou o editor filho a cada tecla | `_writeCard()` só atualiza o rótulo da lista, nunca recria o editor aberto |
+| **Não dá para editar os itens de um `picture-elements` de dentro** — o painel do item fecha sozinho na primeira alteração, e "adicionar elemento" acrescenta sem abrir | o HA devolve a config para o `setConfig` do editor logo depois de nós emitirmos (`hui-element-editor`: `set value` → `_updateConfigElement` → `setConfig`). O `_render()` nesse **eco** recriava o `hui-card-element-editor` e levava junto o `_subElementEditorConfig`, que é estado interno do editor do picture-elements | `_emit()` marca o que saiu em `this._echo`; `setConfig()` reconhece o eco (referência **ou** `sameJson`) e atualiza `_config` **sem** `_render()`. `_renderCardEditor()` ainda reaproveita o editor já aberto no mesmo card (`this._aberto`) |
+| Slider de cor/alfa "solta" no meio do arrasto | mesmo eco: cada `input` emitia, o HA devolvia e o `_renderColors()` trocava o `innerHTML` embaixo do dedo | a guarda de eco do `setConfig` resolve junto |
+| Clicar na imagem do `picture-elements` não posiciona o elemento | o card filho nunca recebia `preview` — `hui-picture-elements-card._handleImageClick` sai na primeira linha se `preview` for falso | `set preview` no `MwTabCard` + repasse em `_createCard()` |
 | YAML ganha `tab_position: bottom` sozinho | default indo para a config | `_patch()` apaga tudo que for igual ao `DEFAULTS` |
 | Faixa lateral larga demais, painel espremido | `--tsize` fixo na vertical (eram 104px, valessem ícone ou rótulo) | vertical automática usa `max-content` entre `--tmin` (46) e `--tmax` (`min(168px, 45%)`) |
 | Ícone/texto da aba **ativa** desalinhado das inativas | a costura de 1px escrita como `padding-<lado>:1px` seco **apaga** o respiro daquele lado (o atalho `padding` já passou) | somar: `padding-<lado>:calc(<respiro> + 1px)` |
