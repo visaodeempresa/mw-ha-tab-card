@@ -445,7 +445,19 @@
           color:var(--mw-content-text);
           --primary-text-color:var(--mw-content-text);
           --secondary-text-color:var(--mw-content-text-soft);
-          --ha-card-header-color:var(--mw-content-text);}
+          --ha-card-header-color:var(--mw-content-text);
+          /* Tomamos a tinta do conteúdo; então temos de tomar TAMBÉM a pastilha
+             de código do markdown. Sintoma de não tomar: sobre papel claro o
+             <code> fica com a tinta clara do painel (26,26,26) por cima do
+             fundo escuro do tema (17,17,17) — 1,07:1, um retângulo preto
+             sólido. Vale para qualquer contêiner que troque a tinta sem trocar
+             o fundo dos filhos. */
+          --markdown-code-background-color:var(--mw-code-bg);
+          --code-editor-background-color:var(--mw-code-bg);}
+        .panel code,.panel kbd,.panel samp{background:var(--mw-code-bg);
+          color:var(--mw-content-text);border-radius:5px;padding:1px 5px;}
+        .panel pre{background:var(--mw-code-bg);border-radius:8px;padding:8px 10px;overflow:auto;}
+        .panel pre code{background:none;padding:0;}
         .panel.flat{--ha-card-background:transparent;--ha-card-box-shadow:none;
           --ha-card-border-width:0;--ha-card-border-color:transparent;}
         .pane{display:none;flex-direction:column;gap:var(--gap);}
@@ -454,7 +466,11 @@
         .empty{opacity:.55;font-size:13px;text-align:center;padding:22px 8px;}
         .tabs{position:relative;z-index:1;display:flex;
           ${horiz ? "flex-direction:row;height:var(--tsize);"
-            : "flex-direction:column;width:var(--tsize);max-width:var(--tmax);"
+            // flex-shrink:0 é obrigatório aqui: o trilho é item flex e, com
+            // conteúdo largo, `width` vira só uma sugestão — tab_size=104
+            // renderizava 62 px e o rótulo saía cortado («ESQU…»), sem erro
+            // nenhum e com a variável CSS certa no elemento.
+            : "flex-direction:column;flex:0 0 auto;width:var(--tsize);max-width:var(--tmax);"
               // o ícone manda no piso: espessura menor que ele o faria vazar
               // da aba (ha-icon é flex:none) e sair ilegível por cima da casca
               + "min-width:max(var(--tmin), calc(var(--tis) + 8px));"}
@@ -548,6 +564,11 @@
       set("--mw-tab-off", c.tab_inactive_color || DEFAULTS.tab_inactive_color);
       set("--mw-content-text", contentText);
       set("--mw-content-text-soft", toRgba({ ...soft, a: 0.68 }));
+      // A pastilha de código do markdown nasce com o fundo do TEMA. Como aqui
+      // a tinta passou a ser a do painel, o fundo tem de vir do painel também
+      // — senão sobre papel claro dá tinta escura em chip escuro (1,07:1).
+      // Tinta clara pede chip claro; tinta escura pede chip escuro.
+      set("--mw-code-bg", toRgba({ ...soft, a: 0.10 }));
       set("--mw-elev", c.elevation === false ? "none"
         : "0 2px 6px rgba(0,0,0,0.18),0 6px 16px rgba(0,0,0,0.14),0 12px 28px rgba(0,0,0,0.08),"
         + "inset 4px 4px 8px rgba(255,252,240,0.90),inset -4px -4px 8px rgba(0,0,0,0.12)");
