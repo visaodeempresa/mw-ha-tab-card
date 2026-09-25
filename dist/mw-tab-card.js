@@ -70,15 +70,20 @@
 
   const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
 
-  // igualdade rasa-o-bastante para reconhecer o eco de uma config que voltou
-  // do HA. Symbol não entra em JSON — e é exatamente o que queremos: o
-  // picture-elements pendura o callback de clique num Symbol, e ele não pode
-  // contar como "mudou".
-  const sameJson = (a, b) => {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; }
-  };
+  // Assinatura de config: é assim que reconhecemos o eco de uma config que
+  // voltou do HA e o que mudou de uma repintura para a outra.
+  // Defensivo de propósito: config com ciclo ou valor exótico devolve `null`
+  // em vez de derrubar quem chamou, e `null` nunca casa com `null` nas
+  // comparações — na dúvida, "diferente" é o lado seguro.
+  // Symbol não entra em JSON. Onde isso importa (o callback de clique que o
+  // editor do picture-elements pendura num Symbol da config) a comparação é
+  // por referência, não por esta assinatura — ver `_syncPane()`.
+  const jsonOf = (o) => { try { return JSON.stringify(o); } catch (_) { return null; } };
+
+  const tipoDe = (cfg) => String((cfg && cfg.type) || "");
+
+  // quantas emissões recentes contam como "eco nosso" (ver setConfig do editor)
+  const ECHO_RING = 6;
 
   // >>> paper-palette v1 — fonte canônica: /Volumes/SSD-T1-01/CLAUDE-SSD/IA/lib/paper-palette/paper-palette.js
   // 49 papéis encardidos: 7 matizes do arco-íris × 7 tons (1 = quase branco,
@@ -167,13 +172,23 @@
       const before = this._config;
       this._config = cfg;
 
-      // troca de config = os filhos podem ter mudado; joga fora e remonta.
-      // Comparar por JSON é barato perto de recriar cards à toa a cada
-      // repintura do editor (e o editor repinta a cada tecla).
-      const sig = JSON.stringify(cfg.tabs.map((t) => t.cards));
-      if (sig !== this._cardsSig) {
-        this._cardsSig = sig;
-        this._panes = null;
+      // troca de config = os filhos podem ter mudado. Comparar por JSON é
+      // barato perto de recriar cards à toa a cada repintura do editor (e o
+      // editor repinta a cada tecla).
+      // A assinatura é POR ABA, não do card inteiro: uma tecla num card da
+      // aba 0 não pode derrubar o pane da aba 1 (câmera reconecta, gráfico
+      // perde o zoom). Dentro da aba, quem decide o que recriar é
+      // `_syncPane()` — card com o mesmo tipo recebe `setConfig` e continua
+      // vivo, que é o contrato do <hui-card> do HA.
+      const antes = this._cardsSig instanceof Map ? this._cardsSig : null;
+      const agora = new Map(cfg.tabs.map((t, i) => [i, jsonOf(t.cards)]));
+      this._cardsSig = agora;
+      if (!antes) this._panes = null;
+      else if (this._panes) {
+        for (const [i, pane] of [...this._panes.entries()]) {
+          // aba que sumiu do YAML: o pane vai junto
+          if (i >= cfg.tabs.length) { pane.remove(); this._panes.delete(i); }
+        }
       }
       if (!before || before.tab_position !== cfg.tab_position) this._styled = false;
 
@@ -566,9 +581,7 @@
         ? c.tabs.map((_, i) => i)
         : [this._active];
 
-      for (const i of want) {
-        if (!this._panes.has(i)) await this._buildPane(i);
-      }
+      for (const i of want) await this._syncPane(i);
       // keep_alive desligado: só a aba visível continua montada
       if (c.keep_alive === false && c.preload !== true) {
         for (const [i, pane] of [...this._panes.entries()]) {
@@ -578,8 +591,7 @@
       for (const [i, pane] of this._panes.entries()) pane.classList.toggle("on", i === this._active);
     }
 
-    async _buildPane(i) {
-      const tab = this._config.tabs[i];
+    _novoPane(i) {
       const pane = document.createElement("div");
       pane.className = "pane";
       pane.dataset.i = String(i);
@@ -588,14 +600,64 @@
       const after = [...this._panes.entries()].filter(([k]) => k < i).length;
       this._els.panel.insertBefore(pane, this._els.panel.children[after] || null);
       this._panes.set(i, pane);
+      return pane;
+    }
 
-      const cards = tab.cards || [];
+    // Reconcilia o pane da aba `i` com o YAML: card de mesmo tipo na mesma
+    // posição recebe `setConfig` e CONTINUA VIVO; só troca de tipo, entrada e
+    // saída é que criam/removem elemento. Recriar tudo a cada repintura do
+    // editor era o que matava o estado do card de dentro — o picture-elements
+    // em pré-visualização perdia o elemento que estava sendo posicionado.
+    async _syncPane(i) {
+      const tab = this._config.tabs[i] || {};
+      const pane = this._panes.get(i) || this._novoPane(i);
+      const cards = Array.isArray(tab.cards) ? tab.cards : [];
+
       if (!cards.length) {
-        pane.innerHTML = `<div class="empty">Aba «${esc(tab.label || i + 1)}» sem cards — adicione no editor.</div>`;
+        if (!pane.dataset.vazio) {
+          this._esvazia(pane);
+          pane.innerHTML = `<div class="empty">Aba «${esc(tab.label || i + 1)}» sem cards — adicione no editor.</div>`;
+          pane.dataset.vazio = "1";
+        }
         return;
       }
+
+      const marca = (this._syncSeq = (this._syncSeq || 0) + 1);
       const helpers = await this._helpers();
-      for (const cfg of cards) pane.appendChild(this._createCard(helpers, cfg));
+      // outra sincronização assumiu enquanto esperávamos os helpers, ou o
+      // pane já foi descartado: esta volta não tem mais o que fazer
+      if (marca !== this._syncSeq || this._panes.get(i) !== pane) return;
+
+      if (pane.dataset.vazio) { this._esvazia(pane); delete pane.dataset.vazio; }
+
+      for (let j = 0; j < cards.length; j++) {
+        const cfg = cards[j];
+        const el = pane.children[j];
+        if (el && el._mwType === tipoDe(cfg) && typeof el.setConfig === "function") {
+          // compara por REFERÊNCIA, como o <hui-card> do HA: a config só troca
+          // de objeto quando alguém mexeu nela, e o JSON deixaria escapar o
+          // Symbol de clique-na-imagem que o editor do picture-elements
+          // pendura na config (Symbol não entra em JSON.stringify)
+          if (el._mwCfg !== cfg) {
+            try { el.setConfig(cfg); el._mwCfg = cfg; } catch (_) {
+              pane.replaceChild(this._createCard(helpers, cfg), el);
+              continue;
+            }
+          }
+          if (this._hass) el.hass = this._hass;
+          if (this._editMode !== undefined) el.editMode = this._editMode;
+          if (this._preview !== undefined) el.preview = this._preview;
+          continue;
+        }
+        const novo = this._createCard(helpers, cfg);
+        if (el) pane.replaceChild(novo, el); else pane.appendChild(novo);
+      }
+      while (pane.children.length > cards.length) pane.children[pane.children.length - 1].remove();
+    }
+
+    _esvazia(pane) {
+      while (pane.children.length) pane.children[pane.children.length - 1].remove();
+      pane.innerHTML = "";
     }
 
     async _helpers() {
@@ -617,15 +679,21 @@
         el.style.cssText = "padding:12px;border-radius:10px;background:rgba(200,0,0,.12);font-size:13px;";
         return el;
       }
+      // marca o que este elemento está desenhando: é o que deixa `_syncPane()`
+      // reaproveitá-lo em vez de recriar a cada repintura do editor
+      el._mwType = tipoDe(cfg);
+      el._mwCfg = cfg;
       if (this._hass) el.hass = this._hass;
       if (this._editMode !== undefined) el.editMode = this._editMode;
       if (this._preview !== undefined) el.preview = this._preview;
       // ll-rebuild: o card de dentro pede para ser recriado (é o contrato que
       // as pilhas do HA respeitam). Sem isto, um card que troca de tipo em
-      // tempo de execução fica congelado no que era antes.
+      // tempo de execução fica congelado no que era antes. Usa `el._mwCfg`, a
+      // config ATUAL: depois de um `setConfig` no lugar, a do fechamento
+      // estaria velha.
       el.addEventListener("ll-rebuild", (ev) => {
         ev.stopPropagation();
-        const novo = this._createCard(helpers, cfg);
+        const novo = this._createCard(helpers, el._mwCfg || cfg);
         if (el.parentNode) el.parentNode.replaceChild(novo, el);
       });
       return el;
@@ -720,11 +788,23 @@
       // destrói o <hui-card-element-editor> aberto — junto com o estado
       // INTERNO do editor do card de dentro. Era o que fechava o painel
       // "editar item" do picture-elements a cada alteração.
-      const echo = config === this._echo || sameJson(config, this._echo);
-      this._echo = null;
+      //
+      // E o eco NÃO vem sozinho: uma única ação do dono rende duas ou mais
+      // voltas. O editor da grid emite assim que monta (o <ha-form> dele
+      // injeta os defaults `columns`/`square`), e o painel de item do
+      // picture-elements emite ao receber o `.value`. Guardando só a última
+      // emissão, a penúltima voltava disfarçada de "mudança de fora": o
+      // _render() destruía o editor aberto, que remontava, emitia de novo e
+      // o laço se fechava — era isso que deixava a grid sem abrir e o item
+      // do picture-elements sem aparecer. Por isso o anel das últimas.
+      const jn = jsonOf(config);
+      const echos = this._echos || [];
+      const echo = echos.some((e) => e.ref === config || (jn !== null && e.json === jn));
       this._config = { ...config, tabs: (config.tabs || []).map((t) => ({ ...t })) };
       if (this._tab == null || this._tab >= this._config.tabs.length) this._tab = 0;
       if (echo && this._root) return;
+      // mudança de fora aceita: o que saiu daqui antes dela virou história
+      this._echos = [];
       this._render();
     }
     set hass(hass) {
@@ -734,13 +814,36 @@
       if (this._cardEditor) this._cardEditor.hass = hass;
       if (this._picker) this._picker.hass = hass;
     }
+    get hass() { return this._hass; }
 
-    // o hui-card-element-editor e o hui-card-picker esperam um objeto lovelace
-    // (é assim que o editor da pilha do HA os alimenta). O editor de um card
-    // custom não recebe esse objeto, então damos um de bolso — os dois só usam
-    // config/editMode para montar a lista de cards.
+    // O HA entrega aqui o LovelaceConfig do dashboard — mas SÓ se a
+    // propriedade existir no elemento: `hui-element-editor.loadConfigElement`
+    // faz `if ("lovelace" in configElement)`. Sem declarar, nunca chegava.
+    set lovelace(v) {
+      this._lovelaceHA = v;
+      if (this._cardEditor) this._cardEditor.lovelace = this._lovelace;
+      if (this._picker) this._picker.lovelace = this._lovelace;
+    }
+    get lovelace() { return this._lovelaceHA; }
+
+    // O que desce para o hui-card-element-editor e o hui-card-picker — o
+    // mesmo que o editor da pilha do HA passa para eles. Quando o HA injeta
+    // (ver `set lovelace`), é o dashboard de verdade e a lista de cards
+    // sugeridos sai certa.
+    //
+    // ARMADILHA: o substituto de bolso precisa ter `views` NA RAIZ. O HA
+    // atual passa o LovelaceConfig puro (`hui-dialog-edit-card`:
+    // `.lovelace=${this._params.lovelaceConfig}`), e o hui-card-picker faz
+    // `computeUsedEntities(this.lovelace)` → `config.views.forEach(...)`.
+    // Com a forma antiga ({config:{views}}) aquilo estourava em `firstUpdated`
+    // e o `render()` do picker saía em `nothing`: seletor de cards EM BRANCO
+    // — o do MW Tab e o de dentro de qualquer pilha/grid, que recebe este
+    // mesmo objeto (`hui-stack-card-editor`: `.lovelace=${this.lovelace}`).
+    // `config.views` fica junto para o HA antigo (hacs.json: mínimo 2024.8.0).
     get _lovelace() {
+      if (this._lovelaceHA) return this._lovelaceHA;
       return this._fakeLovelace || (this._fakeLovelace = {
+        views: [],
         config: { views: [] },
         editMode: true,
         rawConfig: "",
@@ -751,8 +854,10 @@
 
     _emit(config) {
       this._config = config;
-      // marca o que saiu daqui para reconhecer o eco em setConfig
-      this._echo = config;
+      // marca o que saiu daqui para reconhecer o eco em setConfig. São as
+      // ÚLTIMAS emissões, não a última: uma ação do dono rende mais de uma,
+      // e os ecos voltam fora de ordem.
+      this._echos = [{ ref: config, json: jsonOf(config) }, ...(this._echos || [])].slice(0, ECHO_RING);
       this.dispatchEvent(new CustomEvent("config-changed",
         { bubbles: true, composed: true, detail: { config } }));
     }
@@ -965,25 +1070,38 @@
       const alvo = this._editing
         ? { j: this._editing.j, adding: !!this._editing.adding }
         : null;
-      // o editor do card de dentro guarda estado que só existe nele (o painel
-      // de item do picture-elements é o caso clássico). Se ele já está aberto
-      // no mesmo card, atualizar é o certo — recriar é perder o que o dono
-      // estava editando.
-      if (alvo && this._cardEditor && this._aberto
+      // o editor do card de dentro guarda estado que só existe nele: o painel
+      // de item do picture-elements e a aba selecionada da grid são os casos
+      // clássicos. Se ele já está aberto — OU ainda está sendo montado — no
+      // mesmo card, atualizar é o certo; recriar é perder o que o dono estava
+      // editando, e o editor remontado emite de novo, fechando o laço.
+      if (alvo && this._aberto
           && this._aberto.j === alvo.j && this._aberto.adding === alvo.adding) {
+        // montagem em voo (ainda no await de loadHuiEditors): deixa terminar
+        if (!this._cardEditor) return;
         this._cardEditor.hass = this._hass;
+        this._cardEditor.lovelace = this._lovelace;
         const cfg = ((this._config.tabs[this._tab] || {}).cards || [])[alvo.j];
-        // o próprio editor filho é a origem da maioria das mudanças: aí o
-        // objeto é o dele e o set value dele sai pela porta do deepEqual
-        if (cfg) this._cardEditor.value = cfg;
+        // só empurra o que veio DE FORA. Devolver para o filho a config que
+        // ele mesmo acabou de emitir é rebobinar a fita: ele reprocessa e
+        // emite outra vez — e o painel de item pisca no meio do caminho.
+        if (cfg && cfg !== this._ultimoDoFilho) this._cardEditor.value = cfg;
         return;
       }
+      // geração da montagem: quem começar depois invalida quem estava no
+      // await, em vez de anexar o editor num host que já saiu da tela
+      const gen = (this._genEditor = (this._genEditor || 0) + 1);
       this._cardEditEl.innerHTML = "";
       this._cardEditor = null;
       this._picker = null;
       this._aberto = null;
+      this._ultimoDoFilho = null;
       if (!this._editing) return;
       const { j, adding } = this._editing;
+      // reserva o alvo ANTES do await: sem isso, um setConfig que chegue
+      // durante o carregamento dos editores do HA acha que não há nada aberto
+      // e começa outra montagem por cima desta
+      this._aberto = { j, adding: !!adding };
       const box = document.createElement("div");
       box.className = "mtc-edit";
       box.innerHTML = `<div class="top"><span>${adding ? "Novo card" : `Card ${j + 1}`}</span>
@@ -994,6 +1112,7 @@
       const host = box.querySelector(".host");
 
       const ok = await loadHuiEditors();
+      if (gen !== this._genEditor) return;   // outra montagem assumiu
       if (this._editing !== null && adding && ok && customElements.get("hui-card-picker")) {
         const picker = document.createElement("hui-card-picker");
         picker.hass = this._hass;
@@ -1020,12 +1139,23 @@
         ed.value = current;
         ed.addEventListener("config-changed", (ev) => {
           ev.stopPropagation();
-          if (ev.detail && ev.detail.config) this._writeCard(j, ev.detail.config);
+          if (!ev.detail || !ev.detail.config) return;
+          // lembra o que o filho emitiu: é o que impede de devolvê-lo depois
+          this._ultimoDoFilho = ev.detail.config;
+          this._writeCard(j, ev.detail.config);
         });
         this._cardEditor = ed;
-        this._aberto = { j, adding: !!adding };
+        // `adding: false` de propósito: o card já existe a partir daqui, e o
+        // _editing vira { j } logo abaixo. Guardar `true` fazia a próxima
+        // repintura achar que era outro alvo e recriar o editor recém-montado.
+        this._aberto = { j, adding: false };
         host.appendChild(ed);
-        if (adding) { this._writeCard(j, current); this._editing = { j }; this._renderCardList(); }
+        if (adding) {
+          this._ultimoDoFilho = current;
+          this._writeCard(j, current);
+          this._editing = { j };
+          this._renderCardList();
+        }
         return;
       }
 

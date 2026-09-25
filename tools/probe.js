@@ -101,6 +101,11 @@ global.window = {
     createCardElement(cfg) {
       const el = new Node("div");
       el._cfg = cfg;
+      el._setConfigs = 0;
+      // todo card do HA tem setConfig — é por ele que a pilha reaproveita o
+      // elemento em vez de recriar. O dublê precisa ter também, senão o
+      // probe nunca exercita esse caminho.
+      el.setConfig = (c) => { el._cfg = c; el._setConfigs++; };
       el.getCardSize = () => 2;
       return el;
     },
@@ -334,6 +339,34 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   await wait(); await wait();
   has(el4._panes.get(0).innerHTML, "sem cards", "aba vazia deveria avisar em vez de ficar em branco");
 
+  /* --------- mexer num card não pode derrubar o resto ---------
+     A assinatura era de TODOS os cards de TODAS as abas: qualquer tecla no
+     editor zerava `_panes` e recriava tudo — câmera reconecta, gráfico perde
+     o zoom e o picture-elements em pré-visualização perde o elemento que
+     estava sendo posicionado. Agora a assinatura é por aba e, dentro da aba,
+     card do mesmo tipo recebe `setConfig` e continua vivo. */
+  const T0 = { label: "Carteira", icon: "mdi:wallet", cards: [{ type: "markdown", content: "a" }] };
+  const T1 = { label: "Prêmios", icon: "mdi:trophy", cards: [{ type: "markdown", content: "b" }] };
+  const el7 = mk({ preload: true, tabs: [T0, T1] });
+  await wait(); await wait(); await wait();
+  const cardA = el7._panes.get(0).children[0];
+  const cardB = el7._panes.get(1).children[0];
+  el7.setConfig({ preload: true, tabs: [{ ...T0, cards: [{ type: "markdown", content: "a2" }] }, T1] });
+  await wait(); await wait(); await wait();
+  ok(el7._panes.get(1).children[0] === cardB && cardB._setConfigs === 0,
+    "mexer num card da aba 0 não pode tocar no card da aba 1");
+  ok(el7._panes.get(0).children[0] === cardA,
+    "card do mesmo tipo deveria ser reaproveitado com setConfig, não recriado");
+  ok(cardA._cfg.content === "a2" && cardA._setConfigs === 1,
+    "o card reaproveitado não recebeu a config nova por setConfig");
+  el7.setConfig({ preload: true, tabs: [{ ...T0, cards: [{ type: "gauge", entity: "sensor.x" }] }, T1] });
+  await wait(); await wait(); await wait();
+  ok(el7._panes.get(0).children[0] !== cardA, "troca de tipo tem que recriar o card");
+  el7.setConfig({ preload: true, tabs: [{ ...T0, cards: [] }, T1] });
+  await wait(); await wait(); await wait();
+  has(el7._panes.get(0).innerHTML, "sem cards", "aba que ficou sem cards deveria voltar ao aviso");
+  ok(el7._panes.get(0).children.length === 0, "aba esvaziada não pode guardar o card antigo");
+
   /* remember_tab guarda a escolha e a próxima montagem respeita */
   const el5 = mk({ ...BASE, remember_tab: true });
   el5._select(1, true);
@@ -441,6 +474,91 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   ed2.setConfig({ tabs: [{ label: "outra", cards: [] }] });
   ok(ed2._cardEditEl.innerHTML !== "SENTINELA",
     "config vinda de fora deveria redesenhar o editor");
+
+  /* --------- o eco NÃO vem sozinho ---------
+     Uma ação do dono rende duas ou mais voltas: o editor da grid emite assim
+     que monta (o <ha-form> dele injeta os defaults columns/square) e o painel
+     de item do picture-elements emite ao receber o `.value`. Guardando só a
+     última emissão, a penúltima voltava disfarçada de "mudança de fora": o
+     _render() destruía o editor aberto, ele remontava, emitia de novo — laço.
+     Era isso que deixava a grid sem abrir e o item do picture-elements sem
+     aparecer. */
+  const ed3 = new reg["mw-tab-card-editor"]();
+  ed3.hass = { states: {} };
+  const saiu = [];
+  ed3.addEventListener("config-changed", (ev) => saiu.push(ev.detail.config));
+  ed3.setConfig({ tabs: [{ label: "a", cards: [{ type: "grid", cards: [] }] }] });
+  ed3._tab = 0;
+  ed3._editing = { j: 0 };
+  // sem `_aberto` de propósito: aqui quem tem que segurar o _render() é a
+  // guarda de eco, não o reaproveitamento do editor já montado
+  ed3._cardEditEl.innerHTML = "SENTINELA";
+  ed3._writeCard(0, { type: "grid", cards: [], square: true });              // volta 1
+  ed3._writeCard(0, { type: "grid", cards: [], square: true, columns: 4 });  // volta 2
+  ed3.setConfig(saiu[0]);      // o eco da volta 1 chega DEPOIS da volta 2
+  ok(ed3._cardEditEl.innerHTML === "SENTINELA",
+    "eco fora de ordem não pode recriar o editor do card de dentro");
+  ed3.setConfig(saiu[1]);
+  ok(ed3._cardEditEl.innerHTML === "SENTINELA",
+    "o eco mais recente também tem que ser reconhecido");
+  ok(ed3._config.tabs[0].cards[0].columns === 4,
+    "o eco tem que atualizar a config guardada mesmo sem re-renderizar");
+  ed3.setConfig({ tabs: [{ label: "z", cards: [] }] });
+  ok(ed3._cardEditEl.innerHTML !== "SENTINELA",
+    "depois dos ecos, mudança de fora ainda tem que redesenhar");
+
+  /* --------- lovelace: o HA só injeta se a propriedade existir ---------
+     hui-element-editor.loadConfigElement: `if ("lovelace" in configElement)`.
+     E o hui-card-picker faz computeUsedEntities(lovelace) → lovelace.views
+     .forEach: sem `views` NA RAIZ ele estoura em firstUpdated e o render()
+     sai em `nothing` — seletor de cards em branco, tanto o do MW Tab quanto
+     o de dentro de qualquer pilha/grid, que recebe este mesmo objeto. */
+  const ed4 = new reg["mw-tab-card-editor"]();
+  ok("lovelace" in ed4,
+    "sem declarar `lovelace`, o HA nunca injeta o dashboard no editor");
+  ok(Array.isArray(ed4._lovelace.views),
+    "substituto de lovelace sem `views` na raiz deixa o hui-card-picker em branco");
+  ok(Array.isArray(ed4._lovelace.config.views),
+    "substituto de lovelace sem `config.views` quebra o HA antigo (mínimo 2024.8.0)");
+  const llReal = { views: [{ cards: [] }] };
+  ed4.lovelace = llReal;
+  ok(ed4._lovelace === llReal, "o lovelace do HA tem que vencer o substituto de bolso");
+
+  /* --------- reuso não devolve ao filho o que ele acabou de emitir ---------
+     Rebobinar a fita faz o editor do card de dentro reprocessar e emitir de
+     novo — e o painel de item pisca no meio do caminho. */
+  const ed5 = new reg["mw-tab-card-editor"]();
+  ed5.hass = { states: {} };
+  ed5.setConfig({ tabs: [{ label: "a", cards: [{ type: "picture-elements", image: "/x.png", elements: [] }] }] });
+  ed5._tab = 0;
+  ed5._editing = { j: 0 };
+  ed5._aberto = { j: 0, adding: false };
+  let escritas = 0;
+  ed5._cardEditor = { set value(_v) { escritas++; }, set hass(_h) {}, set lovelace(_l) {} };
+  const doFilho = { type: "picture-elements", image: "/x.png", elements: [{ type: "state-icon", entity: "light.a" }] };
+  ed5._ultimoDoFilho = doFilho;
+  ed5._writeCard(0, doFilho);
+  await ed5._renderCardEditor();
+  ok(escritas === 0, "reuso não pode devolver ao filho a config que ele mesmo emitiu");
+  ed5._writeCard(0, { type: "picture-elements", image: "/x.png", elements: [] });
+  await ed5._renderCardEditor();
+  ok(escritas === 1, "mudança vinda de fora tem que descer para o editor do card");
+
+  /* --------- montagem em voo não pode ser atropelada ---------
+     `_renderCardEditor()` espera os editores internos do HA. Antes, nessa
+     janela `_aberto` ainda era nulo: um setConfig que chegasse no meio achava
+     que não havia nada aberto e começava outra montagem por cima. */
+  const ed6 = new reg["mw-tab-card-editor"]();
+  ed6.hass = { states: {} };
+  ed6.setConfig({ tabs: [{ label: "a", cards: [{ type: "grid", cards: [] }] }] });
+  ed6._tab = 0;
+  ed6._editing = { j: 0 };
+  ed6._aberto = { j: 0, adding: false };
+  ed6._cardEditor = null;
+  ed6._cardEditEl.innerHTML = "MONTANDO";
+  await ed6._renderCardEditor();
+  ok(ed6._cardEditEl.innerHTML === "MONTANDO",
+    "repintura durante a montagem do editor não pode recomeçar a montagem");
 
   /* --------- a bancada tem que desenhar ícone, não bolinha ---------
      O dublê antigo escrevia um caractere de texto e caía num "●" para todo
