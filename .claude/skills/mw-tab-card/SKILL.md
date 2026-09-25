@@ -34,7 +34,15 @@ outros cards MW:
 5. **O editor também hospeda editor de terceiro.** O `setConfig` do editor
    recebe de volta a config que ele mesmo acabou de emitir (é o eco do
    `hui-element-editor`). Re-renderizar nesse eco recria o
-   `hui-card-element-editor` aberto e apaga o estado interno dele.
+   `hui-card-element-editor` aberto e apaga o estado interno dele. E o eco
+   **não vem sozinho**: uma ação do dono rende duas ou mais voltas, que
+   voltam fora de ordem — por isso `_echos` é um **anel** das últimas
+   emissões, não a última.
+6. **O `lovelace` tem que ser declarado para chegar.** O HA faz
+   `if ("lovelace" in configElement)` (`hui-element-editor.loadConfigElement`)
+   e passa o **LovelaceConfig puro** (`{views: […]}`). Quem não declara a
+   propriedade nunca recebe — e o substituto de bolso precisa ter `views` na
+   raiz, senão o `hui-card-picker` estoura e sai em branco.
 
 **A fusão aba↔painel** é um quadrado de `--nr` px colado na aba ativa,
 pintado de papel sólido e recortado por
@@ -76,6 +84,10 @@ as outras na bancada.
 | Texto do card de dentro sumindo no tema escuro | filho herdou `--primary-text-color` claro | o painel força `--primary-text-color` (`content_text_color`) |
 | Editor de card de dentro não abre | HA não carregou `hui-card-element-editor` | `loadHuiEditors()` instancia o editor da pilha vertical para puxá-lo; se falhar, cai no JSON — **é esperado**, não é bug |
 | Perde o foco ao digitar no editor | recriar o `ha-form` ou o editor filho a cada tecla | `_writeCard()` só atualiza o rótulo da lista, nunca recria o editor aberto |
+| **Clicar no ✎ de um card `grid` não abre o editor dele** — e no `picture-elements`, "adicionar elemento" acrescenta na lista sem abrir o painel do item | o eco do HA **não vem sozinho**: o editor da grid emite sozinho assim que monta (o `<ha-form>` dele injeta os defaults `columns`/`square`) e o painel de item do picture-elements emite ao receber o `.value`. A guarda de eco guardava só a **última** emissão, então a penúltima voltava disfarçada de "mudança de fora": o `_render()` destruía o editor aberto, ele remontava, emitia de novo — laço | `_emit()` guarda um **anel** (`_echos`, `ECHO_RING`) com `{ref, json}` das últimas emissões; `setConfig()` reconhece qualquer uma delas. `_renderCardEditor()` reserva `_aberto` **antes** do `await loadHuiEditors()`, usa token de geração (`_genEditor`) e trata "montagem em voo" como reuso |
+| **O "+" dentro de uma `grid`/pilha abre em branco** (e o "+ adicionar card" do MW Tab também) | `hui-card-picker` faz `computeUsedEntities(this.lovelace)` → `config.views.forEach(...)`. O editor recebia um objeto de bolso na forma antiga (`{config:{views}}`) e o HA nunca injetava o real, porque `hui-element-editor` só injeta com `"lovelace" in configElement` | `get/set lovelace` declarados no `MwTabCardEditor` (o HA passa o `LovelaceConfig` do dashboard) + substituto com `views` na raiz **e** `config.views` para HA antigo |
+| Editor do card de dentro "pisca" / reprocessa sozinho | o reuso devolvia para o filho a config que o próprio filho acabou de emitir — rebobinar a fita faz ele emitir de novo | `_ultimoDoFilho` guarda a referência emitida; o reuso só empurra `value` quando a config veio **de fora** |
+| Trocar uma tecla no editor recria **todos** os cards de **todas** as abas (câmera reconecta, gráfico perde o zoom, picture-elements perde o elemento em posicionamento) | `_cardsSig` era o JSON de todos os cards juntos: qualquer mudança zerava `_panes` | assinatura **por aba** (`Map`) + `_syncPane()`: card de mesmo tipo na mesma posição recebe `setConfig` e continua vivo; só troca de tipo, entrada e saída criam/removem elemento |
 | **Não dá para editar os itens de um `picture-elements` de dentro** — o painel do item fecha sozinho na primeira alteração, e "adicionar elemento" acrescenta sem abrir | o HA devolve a config para o `setConfig` do editor logo depois de nós emitirmos (`hui-element-editor`: `set value` → `_updateConfigElement` → `setConfig`). O `_render()` nesse **eco** recriava o `hui-card-element-editor` e levava junto o `_subElementEditorConfig`, que é estado interno do editor do picture-elements | `_emit()` marca o que saiu em `this._echo`; `setConfig()` reconhece o eco (referência **ou** `sameJson`) e atualiza `_config` **sem** `_render()`. `_renderCardEditor()` ainda reaproveita o editor já aberto no mesmo card (`this._aberto`) |
 | Slider de cor/alfa "solta" no meio do arrasto | mesmo eco: cada `input` emitia, o HA devolvia e o `_renderColors()` trocava o `innerHTML` embaixo do dedo | a guarda de eco do `setConfig` resolve junto |
 | Clicar na imagem do `picture-elements` não posiciona o elemento | o card filho nunca recebia `preview` — `hui-picture-elements-card._handleImageClick` sai na primeira linha se `preview` for falso | `set preview` no `MwTabCard` + repasse em `_createCard()` |
