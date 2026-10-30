@@ -157,6 +157,44 @@
     } catch (_) { /* vibração é enfeite: nunca pode derrubar o toque */ }
   };
 
+  /* ---------------- regras de visibilidade (por aba) ---------------- */
+
+  // `conditions:` da aba segue o formato de visibilidade do HA:
+  // state · numeric_state · or · and · not (e a forma curta, sem `condition`,
+  // que é só `{entity, state}`). Avaliar aqui é o que deixa a aba de BRILHO
+  // nascer e morrer com as luzes sem depender de elementos internos do
+  // frontend que nem sempre estão carregados.
+  const numPelaRegra = (st, r) => {
+    const v = Number(st && st.state);
+    if (!Number.isFinite(v)) return false;
+    if (r.above !== undefined && !(v > Number(r.above))) return false;
+    if (r.below !== undefined && !(v < Number(r.below))) return false;
+    return true;
+  };
+  const avaliaRegra = (hass, r) => {
+    if (!r || typeof r !== "object") return true;
+    const t = r.condition
+      || (r.above !== undefined || r.below !== undefined ? "numeric_state"
+        : r.entity !== undefined ? "state" : "");
+    if (t === "or") return (r.conditions || []).some((x) => avaliaRegra(hass, x));
+    if (t === "and") return (r.conditions || []).every((x) => avaliaRegra(hass, x));
+    if (t === "not") return !(r.conditions || []).some((x) => avaliaRegra(hass, x));
+    const st = hass && hass.states && hass.states[r.entity];
+    if (t === "numeric_state") return numPelaRegra(st, r);
+    if (t === "state") {
+      if (!st) return false;                       // entidade fora do ar: esconde
+      const alvo = r.states !== undefined ? [].concat(r.states)
+        : r.state !== undefined ? [].concat(r.state) : null;
+      return alvo === null ? true : alvo.map(String).includes(String(st.state));
+    }
+    return true;                                   // regra desconhecida não esconde
+  };
+  /** todas as regras da aba valem. Sem hass (primeira pintura) → visível. */
+  const avaliaRegras = (hass, regras) =>
+    !Array.isArray(regras) || !regras.length || !hass
+      ? true
+      : regras.every((r) => avaliaRegra(hass, r));
+
   /* ------------------------------------------------------------------ CARD */
 
   class MwTabCard extends HTMLElement {
@@ -192,19 +230,50 @@
       }
       if (!before || before.tab_position !== cfg.tab_position) this._styled = false;
 
+      this._visiSig = this._temRegras() ? this._visiveis().join(",") : null;
       this._active = this._pickInitialTab();
       this._render();
     }
 
+    /* ---------------- visibilidade das abas (regra por aba) ---------------- */
+
+    // Aba com `conditions:` só entra na faixa quando as regras passam. O
+    // ÍNDICE continua sendo o do YAML — pane, setConfig e remember_tab
+    // guardam o índice original; o que muda é só quem aparece na faixa.
+    _temRegras() {
+      return (this._config.tabs || []).some((t) =>
+        Array.isArray(t.conditions) && t.conditions.length);
+    }
+
+    /** índices originais das abas visíveis AGORA. */
+    _idxsVisiveis() {
+      const tabs = this._config.tabs || [];
+      const out = [];
+      for (let i = 0; i < tabs.length; i++) {
+        if (avaliaRegras(this._hass, tabs[i].conditions)) out.push(i);
+      }
+      return out;
+    }
+
+    /** idem, com redoma: se nenhuma aba passa, a primeira do YAML fica —
+     *  card invisível inteiro é confusão, não honestidade. */
+    _visiveis() {
+      const vis = this._idxsVisiveis();
+      return vis.length ? vis : [0];
+    }
+
     _pickInitialTab() {
-      const n = this._config.tabs.length;
-      if (this._active != null && this._active < n && this._userPicked) return this._active;
-      let i = num(this._config.default_tab, 0);
+      const vis = this._visiveis();
+      const n = vis.length;
+      if (this._active != null && vis.includes(this._active) && this._userPicked) return this._active;
+      // aba guardada pelo remember_tab: só vale se ainda estiver visível
       if (this._config.remember_tab) {
         const saved = Number(this._storeGet());
-        if (Number.isFinite(saved) && saved >= 0 && saved < n) i = saved;
+        if (Number.isFinite(saved) && vis.includes(saved)) return saved;
       }
-      return Math.min(Math.max(0, Math.round(i)), n - 1);
+      // default_tab: posição na FAIXA (entre as abas visíveis), 0 = a primeira
+      const pos = Math.min(Math.max(0, Math.round(num(this._config.default_tab, 0))), n - 1);
+      return vis[pos];
     }
 
     _storeKey() {
@@ -217,6 +286,24 @@
     set hass(hass) {
       this._hass = hass;
       if (!this._config) return;
+      // regras de visibilidade: a avaliação é barata e só existe quando
+      // alguma aba tem `conditions:`. A virada é rara (tudo apagou / acendeu),
+      // então repintar a faixa nela é de graça — e é o que faz a aba sair sem
+      // flash nem remontar o card da aba que continua.
+      if (this._temRegras()) {
+        const agora = this._visiveis().join(",");
+        if (agora !== this._visiSig) {
+          this._visiSig = agora;
+          // a aba ATIVA sumiu (ou ninguém ainda montou): começa de novo limpo —
+          // _pickInitialTab aponta para a primeira aba visível
+          if (!this._panes || !this._visiveis().includes(this._active)) {
+            this._active = this._pickInitialTab();
+            this._panes = null;          // pane da aba que sumiu vai junto
+          }
+          this._render();
+          return;
+        }
+      }
       if (!this._panes) { this._render(); return; }
       for (const pane of this._panes.values()) {
         for (const el of pane.children) el.hass = hass;
@@ -426,8 +513,12 @@
       const c = this._config;
       const pos = this._pos();
       const horiz = this._horizontal();
-      const n = c.tabs.length;
-      const active = Math.min(Math.max(0, this._active | 0), n - 1);
+      const vis = this._visiveis();
+      const n = vis.length;
+      // `active` segue sendo o ÍNDICE do YAML; `posVis` é a posição dele na
+      // faixa de abas — é a posição que decide quina reta e recusto côncavo
+      const active = vis.includes(this._active | 0) ? (this._active | 0) : vis[0];
+      const posVis = Math.max(0, vis.indexOf(active));
       // esticar é opção só na faixa horizontal (ver DEFAULTS.tab_stretch)
       const stretch = horiz ? c.tab_stretch !== false : false;
       const align = alignOf(c, horiz);
@@ -435,8 +526,8 @@
 
       const pr = num(c.panel_radius, 22);
       const nr = num(c.notch_radius, 14);
-      const flushS = stretch ? active === 0 : (align === "start" && active === 0);
-      const flushE = stretch ? active === n - 1 : (align === "end" && active === n - 1);
+      const flushS = stretch ? posVis === 0 : (align === "start" && posVis === 0);
+      const flushE = stretch ? posVis === n - 1 : (align === "end" && posVis === n - 1);
       this._flush = { s: flushS, e: flushE };
 
       // o canto do painel do lado onde a aba ativa encosta na borda vira reto:
@@ -519,7 +610,10 @@
       const c = this._config;
       const stretch = this._stretch;
       const gDisp = DISPLAYS.includes(c.tab_display) ? c.tab_display : "both";
-      const html = c.tabs.map((t, i) => {
+      const visSet = new Set(this._visiveis());
+      const html = c.tabs.map((t, i) => [t, i])
+        .filter(([, i]) => visSet.has(i))
+        .map(([t, i]) => {
         const disp = DISPLAYS.includes(t.display) ? t.display : gDisp;
         const label = t.label ?? "";
         const icon = t.icon ?? "";
@@ -543,14 +637,16 @@
 
     _onKey(ev) {
       const horiz = this._horizontal();
-      const n = this._config.tabs.length;
+      const vis = this._visiveis();
+      const n = vis.length;
+      const at = Math.max(0, vis.indexOf(this._active));
       const prev = horiz ? "ArrowLeft" : "ArrowUp";
       const next = horiz ? "ArrowRight" : "ArrowDown";
       let i = null;
-      if (ev.key === prev) i = (this._active - 1 + n) % n;
-      else if (ev.key === next) i = (this._active + 1) % n;
-      else if (ev.key === "Home") i = 0;
-      else if (ev.key === "End") i = n - 1;
+      if (ev.key === prev) i = vis[(at - 1 + n) % n];
+      else if (ev.key === next) i = vis[(at + 1) % n];
+      else if (ev.key === "Home") i = vis[0];
+      else if (ev.key === "End") i = vis[n - 1];
       if (i === null) return;
       ev.preventDefault();
       this._select(i, true);
@@ -577,15 +673,17 @@
       const c = this._config;
       if (!this._panes) { this._panes = new Map(); this._els.panel.innerHTML = ""; }
 
-      const want = c.preload === true
-        ? c.tabs.map((_, i) => i)
-        : [this._active];
+      const vis = this._visiveis();
+      const want = c.preload === true ? vis : [this._active];
 
       for (const i of want) await this._syncPane(i);
-      // keep_alive desligado: só a aba visível continua montada
-      if (c.keep_alive === false && c.preload !== true) {
-        for (const [i, pane] of [...this._panes.entries()]) {
-          if (i !== this._active) { pane.remove(); this._panes.delete(i); }
+      // aba que ficou invisível pela regra: o pane vai junto, senão o card de
+      // dentro continua montado (e consultando o HA) por trás
+      for (const [i, pane] of [...this._panes.entries()]) {
+        if (!vis.includes(i)) { pane.remove(); this._panes.delete(i); continue; }
+        // keep_alive desligado: só a aba visível continua montada
+        if (c.keep_alive === false && c.preload !== true && i !== this._active) {
+          pane.remove(); this._panes.delete(i);
         }
       }
       for (const [i, pane] of this._panes.entries()) pane.classList.toggle("on", i === this._active);
@@ -714,7 +812,7 @@
     tab_size: "Espessura da faixa de abas (0 = automático: na lateral, do tamanho do conteúdo)",
     tab_font_size: "Tamanho do texto da aba",
     tab_icon_size: "Tamanho do ícone da aba",
-    default_tab: "Aba inicial",
+    default_tab: "Aba inicial (posição entre as abas visíveis)",
     remember_tab: "Lembrar a última aba aberta (neste navegador)",
     keep_alive: "Manter as abas já abertas montadas",
     preload: "Montar todas as abas de uma vez",
@@ -991,6 +1089,100 @@
          <button class="mtc-ib del" data-a="del" ${n <= 1 ? "disabled" : ""} title="apagar aba">✕</button>`;
       this._tabActions.querySelectorAll("[data-a]").forEach((b) =>
         b.addEventListener("click", () => this._tabAction(b.dataset.a)));
+      this._ensureRegras();
+      this._syncRegras();
+    }
+
+    /* ---------------- regras de visibilidade da aba (editor) ---------------- */
+
+    _ensureRegras() {
+      if (this._regraSec) return;
+      this._regraSec = document.createElement("details");
+      this._regraSec.className = "mtc-sec";
+      this._regraSec.innerHTML =
+        `<summary>Regra de visibilidade da aba (opcional)</summary>
+         <div style="font-size:12px;opacity:.7;margin:4px 0 8px;">
+           Aba que falhar na regra <b>sai da faixa</b> (e o HA cai na aba visível anterior).
+           Formato de visibilidade do HA. Exemplo — aparecer só quando alguma luz acesa:
+           <code>- {condition: state, entity: light.x, state: "on"}</code>
+           (duas luzes valendo uma pela outra: embrulhe em <code>condition: or</code>).</div>
+         <div class="yhost"></div>
+         <div class="mtc-row"><span class="nm"></span>
+           <button class="mtc-chip" data-regras="1">Aplicar</button></div>
+         <div class="mtc-warn"></div>`;
+      this._root.querySelector("#tabform").appendChild(this._regraSec);
+      this._regraSec.querySelector("[data-regras]").addEventListener("click", () => this._aplicaRegras());
+      this._regraHost = this._regraSec.querySelector(".yhost");
+      this._regraWarn = this._regraSec.querySelector(".mtc-warn");
+      this._buildRegraEd();
+    }
+
+    async _buildRegraEd() {
+      let ok = false;
+      try {
+        ok = await loadHuiEditors();
+        if (ok) {
+          await Promise.race([
+            customElements.whenDefined("ha-yaml-editor"),
+            new Promise((r) => setTimeout(r, 3000)),
+          ]);
+        }
+      } catch (_) { /* segue no plano B */ }
+      if (ok && customElements.get("ha-yaml-editor")) {
+        const ed = document.createElement("ha-yaml-editor");
+        ed.hass = this._hass;
+        ed.addEventListener("value-changed", (ev) => {
+          ev.stopPropagation();
+          this._regraValido = ev.detail.isValid !== false;
+          if (this._regraValido) this._regraVal = ev.detail.value;
+          this._regraWarn.textContent = this._regraValido ? ""
+            : "YAML inválido — corrija antes de aplicar.";
+        });
+        this._regraHost.appendChild(ed);
+        this._regraEd = ed;
+      } else {
+        // plano B honesto: JSON cru em textarea — melhor que uma tela quebrada
+        this._regraWarn.textContent = "Editor YAML do HA indisponível — a regra em JSON.";
+        this._regraHost.innerHTML = `<textarea class="mtc-ta" spellcheck="false" style="min-height:140px"></textarea>`;
+        this._regraEd = this._regraHost.querySelector("textarea");
+      }
+      this._syncRegras();
+    }
+
+    /** troca de aba: o campo passa a mostrar a regra DELA (sem roubar o foco). */
+    _syncRegras() {
+      if (!this._regraEd || document.activeElement === this._regraEd) return;
+      const conds = ((this._config.tabs || [])[this._tab] || {}).conditions;
+      const regras = Array.isArray(conds) ? conds : null;
+      if (this._regraEd.tagName === "HA-YAML-EDITOR") {
+        this._regraVal = regras || [];
+        this._regraValido = true;
+        try {
+          this._regraEd.defaultValue = this._regraVal;
+          if (this._regraEd.setValue) this._regraEd.setValue(this._regraVal);
+        } catch (_) { /* versão antiga */ }
+      } else {
+        this._regraEd.value = JSON.stringify(regras, null, 2);
+      }
+    }
+
+    _aplicaRegras() {
+      if (!this._regraEd) return;
+      this._regraWarn.textContent = "";
+      let regras;
+      try {
+        regras = this._regraEd.tagName === "HA-YAML-EDITOR" ? this._regraVal : JSON.parse(this._regraEd.value);
+      } catch (e) { this._regraWarn.textContent = `Regra inválida: ${e.message}`; return; }
+      if (regras != null && regras !== undefined && !Array.isArray(regras)) {
+        this._regraWarn.textContent = "A regra é uma LISTA de condições (cada item no formato do HA).";
+        return;
+      }
+      const tabs = this._tabsArr();
+      const t = tabs[this._tab];
+      if (!t) return;
+      if (Array.isArray(regras) && regras.length) t.conditions = regras; else delete t.conditions;
+      this._setTabs(tabs);
+      this._regraWarn.textContent = "Aplicado — a faixa obedece a regra na hora.";
     }
 
     _tabAction(a) {
