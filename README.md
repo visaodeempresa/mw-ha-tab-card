@@ -320,18 +320,54 @@ tabs:
 | `tabs[].icon` | ícone mdi | "" | ícone da aba |
 | `tabs[].display` | `icon`/`text`/`both` | (do card) | override só desta aba |
 | `tabs[].cards` | lista de cards | `[]` | qualquer card do HA, inclusive `custom:` |
+| `tabs[].conditions` | lista de regras | — | **regra de visibilidade da aba** — falhou, ela **sai da faixa** (ver abaixo) |
 | `tab_position` | `top`/`bottom`/`left`/`right` | `bottom` | onde fica a faixa de abas |
 | `tab_display` | `icon`/`text`/`both` | `both` | o que a aba mostra |
 | `tab_stretch` | bool | `true` | abas dividem a faixa em partes iguais — **só na faixa horizontal** |
 | `tab_align` | `start`/`center`/`end` | auto | onde a fila encosta quando não estica; auto = centro na horizontal, topo na vertical |
 | `tab_size` | px | `0` (auto) | espessura da faixa: auto = 46px na horizontal e, na vertical, do tamanho do conteúdo (entre 46 e 168px / 45% do card) |
 | `tab_font_size` / `tab_icon_size` | px | 11 / 20 | tipografia da aba |
-| `default_tab` | índice | `0` | aba aberta ao carregar |
+| `default_tab` | índice | `0` | aba aberta ao carregar — **posição na faixa**, entre as abas visíveis |
 | `remember_tab` | bool | `false` | guarda a última aba **neste navegador** |
 | `keep_alive` | bool | `true` | aba já aberta continua montada ao trocar |
 | `preload` | bool | `false` | monta todas as abas de uma vez |
 
 Aba sem ícone no modo `icon` **não vira caixa vazia**: cai para o texto.
+
+### Regra de visibilidade por aba (`conditions`)
+
+Cada aba pode ter uma lista de regras **no formato de visibilidade do HA**
+(`state`, `numeric_state`, e os embrulhos `or`, `and`, `not`). Falhando a
+regra, a aba **sai da faixa** — sem painel vazio, sem pane montado por trás.
+É o caso clássico: a aba de BRILHO só faz sentido com alguma luz acesa.
+
+```yaml
+tabs:
+  - label: LUZES
+    icon: mdi:ceiling-light-multiple
+    cards: [...]
+  - label: BRILHO
+    icon: mdi:tune-variant
+    cards: [...]
+    conditions:
+      - condition: or
+        conditions:
+          - {condition: state, entity: light.cozinha, state: "on"}
+          - {condition: state, entity: light.lavanderia, state: "on"}
+```
+
+Detalhes que valem saber:
+
+- O **índice** das abas continua sendo o do YAML; quem some é que sai da
+  faixa. `remember_tab` só volta para uma aba ainda visível, e `default_tab`
+  conta a posição **entre as visíveis**.
+- A aba que estiver **ativa** quando sumir devolve o painel para a primeira
+  aba visível, e o pane dela é desmontado de verdade (não consulta o HA por
+  trás).
+- Entidade **fora do ar** (sem estado): regra falha — a aba esconde.
+- Isso é mistura de mundos? O `custom:mw-tab-lights-card` usa exatamente esta
+  peça por dentro; aqui a regra fica **nas mãos de quem escreve o YAML**, sem
+  dependência de compositor.
 
 ### Aparência
 

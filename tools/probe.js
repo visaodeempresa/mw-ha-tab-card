@@ -367,6 +367,83 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   has(el7._panes.get(0).innerHTML, "sem cards", "aba que ficou sem cards deveria voltar ao aviso");
   ok(el7._panes.get(0).children.length === 0, "aba esvaziada não pode guardar o card antigo");
 
+  /* --------- regra de visibilidade por aba (`conditions:`) ---------
+     A aba de BRILHO nasce e morre com as luzes DENTRO do mw-tab-card, no
+     formato de visibilidade do HA — é o que a cozinha-9-0 pedia: duas abas
+     no YAML, a segunda ausente da faixa enquanto nada está aceso. */
+  const COMREGRAS = {
+    tabs: [
+      { label: "LUZES", icon: "mdi:ceiling-light-multiple", cards: [{ type: "markdown", content: "a" }] },
+      { label: "BRILHO", icon: "mdi:tune-variant", cards: [{ type: "markdown", content: "b" }],
+        conditions: [{ condition: "state", entity: "light.cozinha", state: "on" }] },
+    ],
+  };
+  const elR = mk({ ...COMREGRAS });
+  ok(!tabsHtml(elR).includes("mdi:tune-variant"),
+    "regra com luz apagada: a aba BRILHO não pode estar na faixa");
+  ok(tabsHtml(elR).includes("mdi:ceiling-light-multiple"),
+    "a aba sem regra continua na faixa mesmo com a irmã escondida");
+  elR.hass = { states: { "light.cozinha": { state: "on", attributes: {} } } };
+  await wait(); await wait();
+  ok(tabsHtml(elR).includes("mdi:tune-variant"), "luz acesa: a aba com regra volta à faixa");
+  elR._select(1, true);                      // dono estava com o BRILHO aberto
+  elR.hass = { states: { "light.cozinha": { state: "off", attributes: {} } } };
+  await wait(); await wait();
+  ok(elR._active === 0, "aba ativa que sumiu pela regra deve cair na primeira visível");
+  ok(!tabsHtml(elR).includes("mdi:tune-variant"), "luz apagou de novo: aba BRILHO sai da faixa");
+  ok(!elR._panes.has(1), "o pane da aba que ficou invisível deve ser desmontado");
+
+  /* `or`: duas luzes valendo uma pela outra — uma acesa já mostra a aba */
+  const elR2 = mk({
+    tabs: [
+      { label: "a", cards: [] },
+      { label: "b", cards: [], conditions: [{ condition: "or", conditions: [
+        { condition: "state", entity: "light.pia", state: "on" },
+        { condition: "state", entity: "light.mesa", state: "on" },
+      ] }] },
+    ],
+  });
+  elR2.hass = { states: { "light.mesa": { state: "on", attributes: {} } } };
+  await wait(); await wait();
+  ok(tabsHtml(elR2).includes(`data-i="1"`), "or: uma das entidades acesa já satisfaz a regra");
+  elR2.hass = { states: { "light.mesa": { state: "off", attributes: {} } } };
+  await wait(); await wait();
+  ok(!tabsHtml(elR2).includes(`data-i="1"`), "or: todas apagadas, a aba some de novo");
+
+  /* redoma: nenhuma aba passando → a primeira fica, o card não vira raso */
+  const elR3 = mk({
+    tabs: [
+      { label: "a", cards: [], conditions: [{ condition: "state", entity: "light.naoexiste", state: "on" }] },
+    ],
+  });
+  ok(elR3._visiveis().includes(0), "quando nenhuma aba passa, a primeira fica como redoma");
+  has(tabsHtml(elR3), "data-i=\"0\"", "faixa nunca deve ficar sem abas");
+
+  /* editor da regra: grava `conditions:` na aba em edição (plano B = JSON) */
+  const edR = new reg["mw-tab-card-editor"]();
+  edR.hass = { states: {} };
+  edR.setConfig({ tabs: [{ label: "a", cards: [] }, { label: "b", cards: [] }] });
+  edR._tab = 1;
+  edR._ensureRegras();
+  await wait(); await wait();
+  ok(!!edR._regraEd && /textarea|ha-yaml/.test(String(edR._regraHost.innerHTML)),
+    "editor da regra deveria existir (plano B deve ser o textarea JSON)");
+  edR._regraEd.value = JSON.stringify([
+    { condition: "state", entity: "light.cozinha", state: "on" },
+  ]);
+  edR._aplicaRegras();
+  ok(Array.isArray(edR._config.tabs[1].conditions)
+      && edR._config.tabs[1].conditions[0].entity === "light.cozinha",
+    "aplicar deveria gravar a lista em `conditions:` da aba em edição");
+  edR._regraEd.value = "[{condition:state}]]";   // JSON quebrado
+  edR._aplicaRegras();
+  ok(edR._config.tabs[1].conditions[0].entity === "light.cozinha",
+    "aplicar com JSON quebrado não pode estragar a regra anterior");
+  edR._regraEd.value = "null";
+  edR._aplicaRegras();
+  ok(!("conditions" in (edR._config.tabs[1] || {})),
+    "regra vazia deve APAGAR `conditions:` da aba");
+
   /* remember_tab guarda a escolha e a próxima montagem respeita */
   const el5 = mk({ ...BASE, remember_tab: true });
   el5._select(1, true);
