@@ -5,6 +5,9 @@
 #
 # release.yml (tag manual v*) fica como fallback — o upload é idempotente.
 #
+# Fecha chamando deploy-ha.yml: o HACS baixa dentro da casa e a URL do recurso
+# Lovelace é reescrita com a versão.
+#
 # GERADO por IA/tools/mw-devops.sh — não editar à mão.
 # Fonte canônica: IA/lib/mw-devops/templates/auto-release.yml
 name: Auto Release
@@ -20,21 +23,32 @@ on:
   # próximo commit no componente. Não é release à mão — é o mesmo cálculo.
   workflow_dispatch:
 
+# Uma release por vez. Sem isto, dois `workflow_dispatch` seguidos
+# correm juntos e o segundo morre em
+# `cannot lock ref 'refs/heads/main'` — o primeiro já moveu a branch.
+# `cancel-in-progress: false` de propósito: release começada termina.
+concurrency:
+  group: auto-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   auto-release:
     name: Bump, tag & release
     runs-on: ubuntu-latest
+    outputs:
+      versao: ${{ steps.keep.outputs.next }}
+      pular: ${{ steps.ver.outputs.pular }}
     # não re-disparar sobre o commit de bump feito pelo próprio bot
     if: "github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]')"
     permissions:
       contents: write
     steps:
       - name: Checkout (histórico completo p/ tags)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -57,28 +71,44 @@ jobs:
           echo "last=$LAST next=$NEXT bump=$BUMP"
           echo "next=$NEXT" >> "$GITHUB_OUTPUT"
 
+          # RELEASE SEGUE CONTEÚDO. Sem isto, cada `workflow_dispatch` gerava
+          # uma versão nova mesmo sem nada ter mudado — foi assim que saíram
+          # v0.4.1 e v0.4.2 para o mesmo arquivo, e foi por isso que dois
+          # disparos seguidos conflitaram: dois bumps na MESMA linha do dist.
+          PULAR=false
+          if git rev-parse -q --verify "refs/tags/${LAST}" >/dev/null; then
+            if git diff --quiet "${LAST}" HEAD -- dist hacs.json; then
+              PULAR=true
+              echo "::notice::dist e hacs.json iguais a ${LAST} — nada a publicar"
+            fi
+          fi
+          echo "pular=$PULAR" >> "$GITHUB_OUTPUT"
+
       - name: Respeitar versão maior já escrita no dist
+        if: steps.ver.outputs.pular != 'true'
         # quem sobe a mão na versão dentro do JS manda: o bump nunca desce
         id: keep
         run: |
           set -euo pipefail
           NEXT=${{ steps.ver.outputs.next }}
-          CUR=$(grep -oE '%c v?[0-9]+\.[0-9]+\.[0-9]+ ' dist/mw-tab-card.js | head -1 \
+          CUR=$(grep -aoE '%c v?[0-9]+\.[0-9]+\.[0-9]+ ' dist/mw-tab-card.js | head -1 \
                 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           BIG=$(printf '%s\n%s\n' "${NEXT#v}" "$CUR" | sort -V | tail -1)
           echo "dist=$CUR calculada=${NEXT#v} escolhida=$BIG"
           echo "next=v$BIG" >> "$GITHUB_OUTPUT"
 
       - name: Sync version into dist + sanity
+        if: steps.ver.outputs.pular != 'true'
         run: |
           set -euo pipefail
           NEXT=${{ steps.keep.outputs.next }}
           sed -i -E "s/%c v?[0-9]+\.[0-9]+\.[0-9]+ /%c ${NEXT#v} /" dist/mw-tab-card.js
-          grep -q "%c ${NEXT#v} " dist/mw-tab-card.js
+          grep -aq "%c ${NEXT#v} " dist/mw-tab-card.js
           node --check dist/mw-tab-card.js
           node tools/probe.js
 
       - name: Commit version bump
+        if: steps.ver.outputs.pular != 'true'
         run: |
           set -euo pipefail
           if ! git diff --quiet dist/mw-tab-card.js; then
@@ -86,13 +116,44 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add dist/mw-tab-card.js
             git commit -m "chore: 🔖 ${{ steps.keep.outputs.next }} [skip release]"
-            git push
+            # Rebase antes de empurrar, e uma segunda tentativa: entre o
+            # checkout e este passo alguém pode ter empurrado, e o bot perdia a
+            # corrida com `cannot lock ref`. Rebase porque o commit do bot é um
+            # bump de uma linha — nunca há o que mesclar.
+            empurrar() {
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || {
+                # Dois bumps na mesma linha não se mesclam. Como o commit é
+                # DERIVADO, o certo é desistir deste e deixar a esteira do
+                # outro valer — nunca resolver conflito no escuro.
+                git rebase --abort || true
+                echo "::error::outra release empurrou primeiro; nada foi perdido"
+                return 1
+              }
+              git push
+            }
+            empurrar || { sleep 5; empurrar; }
           fi
 
       - name: Tag & publish release (asset + notas)
-        uses: softprops/action-gh-release@v2
+        if: steps.ver.outputs.pular != 'true'
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.keep.outputs.next }}
           name: ${{ steps.keep.outputs.next }}
           generate_release_notes: true
           files: dist/mw-tab-card.js
+
+  # O ciclo só fecha aqui: sem esta chamada a release existe e a casa continua
+  # com o card velho. Não dá para depender do `on: release` do deploy-ha —
+  # release publicada com o GITHUB_TOKEN não dispara workflow nenhum.
+  publicar:
+    needs: auto-release
+    if: needs.auto-release.outputs.pular != 'true'
+    uses: ./.github/workflows/deploy-ha.yml
+    # A versão TEM de ser repassada: chamado por `workflow_call` não existe
+    # `github.event.release`, e sem isto o publicador cai no
+    # `available_version` do HACS — que é a versão VELHA no exato instante em
+    # que a nova acabou de sair. Visto em 2026-09-09.
+    with:
+      versao: ${{ needs.auto-release.outputs.versao }}
+    secrets: inherit

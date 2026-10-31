@@ -22,9 +22,9 @@ jobs:
     name: Sintaxe & probe
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -44,10 +44,10 @@ jobs:
         # trava a armadilha do sed que vira no-op silencioso no auto-release
         run: |
           set -euo pipefail
-          grep -qE '%c v?[0-9]+\.[0-9]+\.[0-9]+ ' dist/mw-tab-card.js
+          grep -aqE '%c v?[0-9]+\.[0-9]+\.[0-9]+ ' dist/mw-tab-card.js
 
       - name: Artefato para inspeção
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: mw-tab-card
           path: dist/mw-tab-card.js

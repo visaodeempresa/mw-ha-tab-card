@@ -1,0 +1,55 @@
+name: Publicar no Home Assistant
+# Fecha o ciclo: release nova → HACS baixa dentro da casa → a URL do recurso
+# Lovelace é reescrita com a versão (senão o navegador serve o card velho) →
+# conferência no destino.
+#
+# Alcança o HA pela Nabu Casa, que entrega HTTP e WebSocket. A porta 22 NÃO
+# passa pelo proxy — por isso nada de SSH aqui, e por isso quem escreve o
+# arquivo é o HACS, de dentro da casa.
+#
+# Precisa de dois segredos no repositório: HA_URL (a URL da Nabu Casa) e
+# HA_TOKEN (token de longa duração do HA). Sem eles o job falha na hora de
+# conectar — de propósito: melhor falhar do que fingir que publicou.
+#
+# GERADO por IA/tools/mw-devops.sh — não editar à mão.
+# Fonte canônica: IA/lib/mw-devops/templates/deploy-ha.yml
+on:
+  # Chamado pelo auto-release. ARMADILHA MEDIDA: release criada com o
+  # GITHUB_TOKEN padrão NÃO dispara outro workflow (proteção do GitHub contra
+  # recursão) — por isso o auto-release CHAMA este aqui em vez de confiar no
+  # evento `release`. O evento fica para release feita à mão.
+  workflow_call:
+    # O input PRECISA ser declarado aqui. Sem isto, o `with: versao:` do
+    # auto-release deixa a esteira inteira em `startup_failure` — o GitHub
+    # recusa o arquivo antes de rodar qualquer passo, e a mensagem não diz
+    # qual workflow está errado. Medido em 2026-09-10.
+    inputs:
+      versao:
+        description: "versão a instalar (ex.: 0.2.0)"
+        required: false
+        type: string
+  release: { types: [published] }
+  workflow_dispatch:
+    inputs:
+      versao: { description: "versão a instalar (ex.: 0.2.0)", required: false }
+
+# Duas publicações simultâneas mandariam o HACS baixar duas versões na
+# mesma casa. Uma por vez, e a última é a que vale.
+concurrency:
+  group: deploy-ha
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: pip install -q websockets
+      - name: HACS baixa e o cache é furado
+        env:
+          HA_URL: ${{ secrets.HA_URL }}
+          HA_TOKEN: ${{ secrets.HA_TOKEN }}
+          VERSAO: ${{ github.event.release.tag_name || inputs.versao }}
+        run: python tools/publicar-no-ha.py
