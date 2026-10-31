@@ -110,6 +110,38 @@
     }))));
   // <<< paper-palette v1
 
+
+  // >>> paper-grafite-palette v1 — fonte canônica: /Volumes/SSD-T1-01/CLAUDE-SSD/IA/lib/paper-grafite-palette/paper-grafite-palette.js
+  // 7 tons de grafite (1 = mais claro, 7 = mais encardido). Matiz 30° da
+  // casa, saturação 6–13%: neutro de propósito — grafite não é colorido.
+  // A saturação sobe devagar com a escuridão, mas JAMAIS alcança a escala
+  // das matizes encardidas (que sobe a 28%): a linha grafite é neutra.
+  const GRAFITE_HUE = 30;
+  const GRAFITE_TONES = [[26, 6], [22, 7], [19, 8], [16, 9], [13, 10], [10, 12], [8, 13]];
+  const GRAFITE_DEFAULT = "linear-gradient(145deg, #2b2825, #161411)";
+  const GRAFITE_INK = "rgba(247, 244, 236, 0.94)";
+  const isGrafite = (key) => /^grafite-[1-7]$/.test(String(key || "").trim());
+  const grafiteGradient = (key) => {
+    const m = isGrafite(key) && /^grafite-([1-7])$/.exec(String(key).trim());
+    if (!m) return GRAFITE_DEFAULT;
+    const [l, s] = GRAFITE_TONES[+m[1] - 1];
+    return `linear-gradient(145deg, hsl(${GRAFITE_HUE}, ${s}%, ${l}%), hsl(${GRAFITE_HUE}, ${s + 4}%, ${Math.max(4, l - 6)}%))`;
+  };
+  const grafiteStops = (key) => {
+    const m = isGrafite(key) && /^grafite-([1-7])$/.exec(String(key).trim());
+    if (!m) return ["#2b2825", "#161411"];
+    const [l, s] = GRAFITE_TONES[+m[1] - 1];
+    return [`hsl(${GRAFITE_HUE}, ${s}%, ${l}%)`, `hsl(${GRAFITE_HUE}, ${s + 4}%, ${Math.max(4, l - 6)}%)`];
+  };
+  const grafiteOptions = () => GRAFITE_TONES.map((t, i) => ({
+    value: `grafite-${i + 1}`,
+    label: `Grafite · tom ${i + 1}${i === 0 ? " (mais claro)" : i === 6 ? " (mais encardido)" : ""}`,
+  }));
+  // <<< paper-grafite-palette v1
+
+
+
+
   // Os dois extremos do mesmo gradiente, em cor sólida. O recorte côncavo que
   // funde a aba ativa ao painel tem 14 px: pintá-lo com o gradiente inteiro
   // deixaria uma emenda visível, porque o gradiente recomeçaria dentro do
@@ -122,6 +154,10 @@
     const [l, s] = PAPER_TONES[+m[2] - 1];
     return [`hsl(${hue[2]}, ${s}%, ${l}%)`, `hsl(${hue[2]}, ${s + 4}%, ${l - 7}%)`];
   };
+  // roteador da linha grafite: a opção nova toma o lugar só quando pedida —
+  // as paletas v1 seguem resolvendo exatamente o que sempre resolveram.
+  const paperBgOf = (key) => isGrafite(key) ? grafiteGradient(key) : paperGradient(key);
+  const paperStopsOf = (key) => isGrafite(key) ? grafiteStops(key) : paperStops(key);
 
   // ---- cor: parse / compose (mantém alfa, que o desenho usa muito) ----
   const parseColor = (str) => {
@@ -540,11 +576,13 @@
       if (pos === "left") { if (flushS) R.tl = 0; if (flushE) R.bl = 0; }
       if (pos === "right") { if (flushS) R.tr = 0; if (flushE) R.br = 0; }
 
-      const [c1, c2] = paperStops(c.paper_color);
+      const [c1, c2] = paperStopsOf(c.paper_color);
       // canto claro em cima, encardido embaixo — segue o 145deg do gradiente
       const notchColor = (pos === "bottom" || pos === "right") ? c2 : c1;
       const shell = c.shell_color || DEFAULTS.shell_color;
-      const contentText = c.content_text_color || DEFAULTS.content_text_color;
+      const contentText = c.content_text_color !== DEFAULTS.content_text_color
+        ? c.content_text_color
+        : (isGrafite(c.paper_color) ? GRAFITE_INK : DEFAULTS.content_text_color);
       const soft = parseColor(contentText);
 
       const s = this._els.shell.style;
@@ -552,15 +590,21 @@
       set("--mw-shell", shell);
       set("--mw-hdr", c.header_color || lighten(shell, 0.1));
       set("--mw-hdr-text", c.header_text_color || DEFAULTS.header_text_color);
-      set("--mw-paper", paperGradient(c.paper_color));
+      set("--mw-paper", paperBgOf(c.paper_color));
       set("--mw-notch", notchColor);
-      set("--mw-tab-on", c.tab_active_color || DEFAULTS.tab_active_color);
+      set("--mw-tab-on", c.tab_active_color !== DEFAULTS.tab_active_color
+        ? c.tab_active_color
+        : (isGrafite(c.paper_color) ? GRAFITE_INK : DEFAULTS.tab_active_color));
       set("--mw-tab-off", c.tab_inactive_color || DEFAULTS.tab_inactive_color);
       set("--mw-content-text", contentText);
       set("--mw-content-text-soft", toRgba({ ...soft, a: 0.68 }));
+      // grafite: mesmo relevo, mas o respiro interno é de noite — a tinta
+      // clara do papel encardido viraria holofote no papel escuro.
+      const graf = isGrafite(c.paper_color);
       set("--mw-elev", c.elevation === false ? "none"
         : "0 2px 6px rgba(0,0,0,0.18),0 6px 16px rgba(0,0,0,0.14),0 12px 28px rgba(0,0,0,0.08),"
-        + "inset 4px 4px 8px rgba(255,252,240,0.90),inset -4px -4px 8px rgba(0,0,0,0.12)");
+        + (graf ? "inset 4px 4px 8px rgba(255,255,255,0.05),inset -4px -4px 8px rgba(0,0,0,0.55)"
+                : "inset 4px 4px 8px rgba(255,252,240,0.90),inset -4px -4px 8px rgba(0,0,0,0.12)"));
       set("--sr", `${num(c.shell_radius, 26)}px`);
       set("--pr", `${pr}px`);
       set("--nr", `${nr}px`);
@@ -1397,7 +1441,7 @@
             { name: "default_tab", selector: { number: { min: 0, max: Math.max(0, (this._config.tabs || []).length - 1), step: 1, mode: "box" } } },
           ],
         },
-        { name: "paper_color", selector: { select: { mode: "dropdown", options: paperOptions() } } },
+        { name: "paper_color", selector: { select: { mode: "dropdown", options: paperOptions().concat(grafiteOptions()) } } },
         { name: "header", selector: { text: {} } },
         ...(c.header || c.header_icon ? [
           { name: "header_icon", selector: { icon: {} } },
@@ -1492,5 +1536,5 @@
     documentationURL: "https://github.com/visaodeempresa/mw-ha-tab-card",
   });
 
-  console.info("%c MW-TAB-CARD %c 0.4.0 ", "background:#1a1a1a;color:#fdfaf3;font-weight:700;", "background:#e8e3d8;color:#1a1a1a;font-weight:700;");
+  console.info("%c MW-TAB-CARD %c 0.5.0 ", "background:#1a1a1a;color:#fdfaf3;font-weight:700;", "background:#e8e3d8;color:#1a1a1a;font-weight:700;");
 })();

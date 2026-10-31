@@ -464,7 +464,30 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
     ok(main.includes(k), `editor sem o campo '${k}'`);
   }
   const paper = ed._form.schema.find((f) => f.name === "paper_color");
-  ok(paper.selector.select.options.length === 50, "paleta de papel deveria ter 1 creme + 49 tons");
+  ok(paper.selector.select.options.length === 57, "paleta de papel deveria ter 1 creme + 49 tons + 7 grafite");
+  /* a linha grafite (paper-grafite-palette v1): painel de NOITE com tinta
+   * creme de noite e relevo de noite — sem tema, sem interruptor dark. */
+  {
+    const el = mk({ ...BASE, paper_color: "grafite-4" });
+    const v = vars(el);
+    has(v["--mw-paper"], "linear-gradient(145deg, hsl(30, 9%, 16%), hsl(30, 13%, 10%))", "painel grafite: tom 4");
+    ok(v["--mw-content-text"] === "rgba(247, 244, 236, 0.94)", "tinta do grafite deveria ser o creme de noite");
+    ok(v["--mw-tab-on"] === "rgba(247, 244, 236, 0.94)", "aba ativa de noite deveria ler creme");
+    has(v["--mw-elev"], "inset 4px 4px 8px rgba(255,255,255,0.05)", "relevo grafite: respiro de noite");
+    has(v["--mw-notch"], "hsl(30, 13%, 10%)", "fusão da aba grafite: stop do tom 4");
+    /* tom 7 é a cunha; tom 1 é o mais claro da linha */
+    has(vars(mk({ ...BASE, paper_color: "grafite-7" }))["--mw-paper"], "hsl(30, 13%, 8%)", "grafite tom 7 (mais encardido)");
+    has(vars(mk({ ...BASE, paper_color: "grafite-1" }))["--mw-paper"], "hsl(30, 6%, 26%)", "grafite tom 1 (mais claro)");
+  }
+  /* os 49 tones existentes continuam pedindo exatamente o que sempre pediram */
+  {
+    const el = mk({ ...BASE, paper_color: "orange-7" });
+    const v = vars(el);
+    has(v["--mw-paper"], "hsl(27, 24%, 85%)", "laranja encardido intacto depois do grafite");
+    has(v["--mw-elev"], "inset 4px 4px 8px rgba(255,252,240,0.90)", "relevo claro intacto");
+    ok(v["--mw-content-text"] === "#1a1a1a", "tinta clara intacta");
+  }
+
   ok(names(ed._tabForm.schema).includes("icon"), "editor da aba sem seletor de ícone");
   /* tab_align só aparece quando as abas não dividem a faixa */
   ok(!main.includes("tab_align"), "tab_align não deveria aparecer com stretch ligado");
