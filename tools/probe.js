@@ -465,6 +465,11 @@ const wait = () => new Promise((r) => setTimeout(r, 0));
   }
   const paper = ed._form.schema.find((f) => f.name === "paper_color");
   ok(paper.selector.select.options.length === 57, "paleta de papel deveria ter 1 creme + 49 tons + 7 grafite");
+  /* gancho de ajuste fino: só existe via herança (card_mod :host). */
+  {
+    const css = el.shadowRoot.getElementById("mw-style").textContent;
+    ok(css.includes("margin-top:var(--panel-shift-y,0px)"), "gancho --panel-shift-y no CSS do painel");
+  }
   /* a linha grafite (paper-grafite-palette v1): painel de NOITE com tinta
    * creme de noite e relevo de noite — sem tema, sem interruptor dark. */
   {

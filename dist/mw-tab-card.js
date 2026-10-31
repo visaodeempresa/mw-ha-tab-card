@@ -504,6 +504,10 @@
           background:var(--mw-paper);box-shadow:var(--mw-elev);
           border-radius:var(--pr-tl) var(--pr-tr) var(--pr-br) var(--pr-bl);
           padding:var(--cpad);min-height:var(--panel-min);
+          /* gancho de ajuste fino (31/10/2026): --panel-shift-y desloca o
+          painel na vertical sem tocar em casca, abas ou notch. Só chega
+          valor aqui por herança (card_mod :host) — o card nunca define. */
+          margin-top:var(--panel-shift-y,0px);
           color:var(--mw-content-text);
           --primary-text-color:var(--mw-content-text);
           --secondary-text-color:var(--mw-content-text-soft);
